@@ -3,7 +3,17 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { isSupportedImage, outputName, validateOptions } = require("./export-utils");
+const {
+  applySavedOrder,
+  isSupportedImage,
+  outputName,
+  validateOptions,
+} = require("./export-utils");
+const {
+  MANIFEST_FILENAME,
+  loadExportManifest,
+  saveExportManifest,
+} = require("./manifest-store");
 
 let mainWindow;
 
@@ -45,7 +55,7 @@ ipcMain.handle("folder:open", async () => {
 
   const folder = result.filePaths[0];
   const entries = await fs.readdir(folder, { withFileTypes: true });
-  const images = entries
+  let images = entries
     .filter((entry) => entry.isFile() && isSupportedImage(entry.name))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
     .map((entry) => {
@@ -57,7 +67,28 @@ ipcMain.handle("folder:open", async () => {
         url: pathToFileURL(filePath).href,
       };
     });
-  return { folder, images };
+
+  let savedOptions = null;
+  let projectLoaded = false;
+  let loadWarning = null;
+  try {
+    const manifest = await loadExportManifest(folder);
+    if (manifest) {
+      images = applySavedOrder(images, manifest.photos);
+      savedOptions = manifest.options;
+      projectLoaded = true;
+    }
+  } catch (error) {
+    loadWarning = `Could not load ${MANIFEST_FILENAME}: ${error.message}`;
+  }
+
+  return {
+    folder,
+    images,
+    options: savedOptions,
+    projectLoaded,
+    loadWarning,
+  };
 });
 
 ipcMain.handle("folder:reveal", async (_event, folder) => {
@@ -95,7 +126,18 @@ ipcMain.handle("photos:export", async (_event, request) => {
       total: photos.length,
     });
   }
-  return { outputFolder, count: photos.length };
+
+  const manifestPath = await saveExportManifest(
+    folder,
+    photos.map((photo) => path.basename(photo.path)),
+    options,
+  );
+
+  return {
+    outputFolder,
+    manifestPath,
+    count: photos.length,
+  };
 });
 
 function runMagick(args) {

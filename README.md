@@ -19,6 +19,11 @@ Open a folder, drag photos into order, adjust export options if needed, then
 choose **Save to output**. The app creates an `output` folder beside the source
 photos and writes `000.jpg`, `001.jpg`, `002.jpg`, and so on.
 
+After a successful export, `almost_gallery_output.json` is saved in the source
+photo folder. It records the source-photo order and ImageMagick settings. Opening
+that folder again restores the saved order and settings; new photos are appended
+after the saved photos.
+
 The defaults are equivalent to:
 
 ```sh

@@ -48,8 +48,15 @@ async function openFolder() {
     if (!result) return;
     state.folder = result.folder;
     state.photos = result.images;
+    state.options = result.options || { resize: "2000x2000", quality: 85 };
     render();
-    if (state.photos.length === 0) showStatus("No supported photos were found in this folder.", "error");
+    if (state.photos.length === 0) {
+      showStatus("No supported photos were found in this folder.", "error");
+    } else if (result.loadWarning) {
+      showStatus(result.loadWarning, "error");
+    } else if (result.projectLoaded) {
+      showStatus("Saved photo order and ImageMagick options loaded.", "success");
+    }
   } catch (error) {
     showStatus(error.message, "error");
   }
@@ -166,7 +173,7 @@ async function exportPhotos() {
       photos: state.photos.map(({ path }) => ({ path })),
       options: state.options,
     });
-    showStatus(`${result.count} photos saved to output. Click to reveal.`, "success", () => {
+    showStatus(`${result.count} photos and export settings saved. Click to reveal output.`, "success", () => {
       window.galleryApi.revealFolder(result.outputFolder);
     });
   } catch (error) {
