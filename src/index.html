@@ -34,7 +34,14 @@
             <p id="folder-name" class="folder-name"></p>
             <p id="photo-count" class="muted"></p>
           </div>
-          <p class="hint">Drag to reorder · Export order runs left to right, top to bottom</p>
+          <div class="grid-tools">
+            <p class="hint">Drag to reorder · Export order runs left to right, top to bottom</p>
+            <div class="preview-controls" aria-label="Preview size">
+              <span>Preview size</span>
+              <button id="preview-smaller" type="button" aria-label="Make previews smaller" title="Make previews smaller">−</button>
+              <button id="preview-larger" type="button" aria-label="Make previews larger" title="Make previews larger">+</button>
+            </div>
+          </div>
         </div>
         <div id="photo-grid" class="photo-grid" aria-live="polite"></div>
       </section>

@@ -68,7 +68,13 @@ main { padding: 30px 36px 88px; }
 .folder-row { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
 .folder-name { font-family: Georgia, serif; font-size: 22px; }
 .muted, .hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
-.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+.grid-tools { display: flex; align-items: center; gap: 18px; }
+.preview-controls { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.preview-controls span { margin-right: 3px; }
+.preview-controls button { display: grid; place-items: center; width: 27px; height: 27px; padding: 0; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: rgba(255,255,255,.7); cursor: pointer; font-size: 17px; line-height: 1; }
+.preview-controls button:hover:not(:disabled) { border-color: #b8bab4; background: white; }
+.preview-controls button:disabled { cursor: not-allowed; opacity: .38; }
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--preview-size, 190px), 100%), 1fr)); gap: 16px; }
 .photo-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 2px 8px rgba(20,25,20,.04); cursor: grab; transition: opacity .14s, transform .14s, box-shadow .14s; }
 .photo-card:active { cursor: grabbing; }
 .photo-card.dragging { opacity: .4; }
@@ -100,5 +106,5 @@ small { color: var(--muted); font-weight: 400; }
   .actions { flex-wrap: wrap; justify-content: flex-end; }
   main { padding: 22px 20px 80px; }
   .hint { display: none; }
-  .photo-grid { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 11px; }
+  .photo-grid { gap: 11px; }
 }

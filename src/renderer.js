@@ -3,7 +3,10 @@ const state = {
   photos: [],
   options: { resize: "2000x2000", quality: 85 },
   draggingId: null,
+  previewSizeIndex: 2,
 };
+
+const previewSizes = [120, 155, 190, 240, 300];
 
 const elements = {
   empty: document.querySelector("#empty-state"),
@@ -18,6 +21,8 @@ const elements = {
   resize: document.querySelector("#resize-input"),
   quality: document.querySelector("#quality-input"),
   optionsError: document.querySelector("#options-error"),
+  previewSmaller: document.querySelector("#preview-smaller"),
+  previewLarger: document.querySelector("#preview-larger"),
 };
 
 document.querySelector("#open-button").addEventListener("click", openFolder);
@@ -30,9 +35,12 @@ document.querySelector("#reset-options").addEventListener("click", () => {
 });
 elements.form.addEventListener("submit", applyOptions);
 elements.exportButton.addEventListener("click", exportPhotos);
+elements.previewSmaller.addEventListener("click", () => changePreviewSize(-1));
+elements.previewLarger.addEventListener("click", () => changePreviewSize(1));
 window.galleryApi.onProgress(({ current, total }) => {
   showStatus(`Processing photo ${current} of ${total}…`, "busy");
 });
+updatePreviewSize();
 
 async function openFolder() {
   try {
@@ -112,6 +120,21 @@ function movePhoto(sourceId, targetId) {
   const [moved] = state.photos.splice(from, 1);
   state.photos.splice(to, 0, moved);
   render();
+}
+
+function changePreviewSize(direction) {
+  state.previewSizeIndex = Math.max(
+    0,
+    Math.min(previewSizes.length - 1, state.previewSizeIndex + direction),
+  );
+  updatePreviewSize();
+}
+
+function updatePreviewSize() {
+  const size = previewSizes[state.previewSizeIndex];
+  elements.grid.style.setProperty("--preview-size", `${size}px`);
+  elements.previewSmaller.disabled = state.previewSizeIndex === 0;
+  elements.previewLarger.disabled = state.previewSizeIndex === previewSizes.length - 1;
 }
 
 function showOptions() {
