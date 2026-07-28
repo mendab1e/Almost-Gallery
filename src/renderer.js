@@ -4,11 +4,18 @@ const state = {
   options: { resize: "2000x2000", quality: 85 },
   draggingId: null,
   previewSizeIndex: 2,
-  galleryPreviewIndex: 0,
+  galleryPreview: { open: false, index: 0 },
   suppressPreviewClick: false,
 };
 
 const previewSizes = [120, 155, 190, 240, 300];
+const {
+  adjustGridSizeIndex,
+  controlStates,
+  folderOpenStatus,
+  movePhotoById,
+  reduceGalleryPreview,
+} = window.galleryUi;
 
 const elements = {
   empty: document.querySelector("#empty-state"),
@@ -52,6 +59,11 @@ elements.previousPhoto.addEventListener("click", () => navigateGalleryPreview(-1
 elements.nextPhoto.addEventListener("click", () => navigateGalleryPreview(1));
 elements.galleryPreviewDialog.addEventListener("keydown", handleGalleryPreviewKeydown);
 elements.galleryPreviewDialog.addEventListener("close", () => {
+  state.galleryPreview = reduceGalleryPreview(
+    state.galleryPreview,
+    { type: "close" },
+    state.photos.length,
+  );
   elements.galleryPreviewImage.removeAttribute("src");
 });
 window.galleryApi.onProgress(({ current, total }) => {
@@ -67,13 +79,8 @@ async function openFolder() {
     state.photos = result.images;
     state.options = result.options || { resize: "2000x2000", quality: 85 };
     render();
-    if (state.photos.length === 0) {
-      showStatus("No supported photos were found in this folder.", "error");
-    } else if (result.loadWarning) {
-      showStatus(result.loadWarning, "error");
-    } else if (result.projectLoaded) {
-      showStatus("Saved photo order and ImageMagick options loaded.", "success");
-    }
+    const status = folderOpenStatus(result);
+    if (status) showStatus(status.message, status.kind);
   } catch (error) {
     showStatus(error.message, "error");
   }
@@ -81,10 +88,11 @@ async function openFolder() {
 
 function render() {
   const hasFolder = Boolean(state.folder);
+  const controls = controlStates(state.photos.length);
   elements.empty.classList.toggle("hidden", hasFolder);
   elements.workspace.classList.toggle("hidden", !hasFolder);
-  elements.exportButton.disabled = state.photos.length === 0;
-  elements.galleryPreviewButton.disabled = state.photos.length === 0;
+  elements.exportButton.disabled = controls.exportDisabled;
+  elements.galleryPreviewButton.disabled = controls.galleryPreviewDisabled;
   if (!hasFolder) return;
 
   elements.folderName.textContent = state.folder.split("/").pop();
@@ -147,18 +155,17 @@ function createPhotoCard(photo, index) {
 }
 
 function movePhoto(sourceId, targetId) {
-  const from = state.photos.findIndex((photo) => photo.id === sourceId);
-  const to = state.photos.findIndex((photo) => photo.id === targetId);
-  if (from < 0 || to < 0 || from === to) return;
-  const [moved] = state.photos.splice(from, 1);
-  state.photos.splice(to, 0, moved);
+  const reordered = movePhotoById(state.photos, sourceId, targetId);
+  if (reordered === state.photos) return;
+  state.photos = reordered;
   render();
 }
 
 function changePreviewSize(direction) {
-  state.previewSizeIndex = Math.max(
-    0,
-    Math.min(previewSizes.length - 1, state.previewSizeIndex + direction),
+  state.previewSizeIndex = adjustGridSizeIndex(
+    state.previewSizeIndex,
+    direction,
+    previewSizes.length,
   );
   updatePreviewSize();
 }
@@ -171,32 +178,42 @@ function updatePreviewSize() {
 }
 
 function openGalleryPreview(index) {
-  if (state.photos.length === 0) return;
-  state.galleryPreviewIndex = Math.max(0, Math.min(state.photos.length - 1, index));
+  state.galleryPreview = reduceGalleryPreview(
+    state.galleryPreview,
+    { type: "open", index },
+    state.photos.length,
+  );
+  if (!state.galleryPreview.open) return;
   renderGalleryPreview();
   if (!elements.galleryPreviewDialog.open) elements.galleryPreviewDialog.showModal();
 }
 
 function closeGalleryPreview() {
-  elements.galleryPreviewDialog.close();
+  if (elements.galleryPreviewDialog.open) elements.galleryPreviewDialog.close();
 }
 
 function navigateGalleryPreview(direction) {
-  const nextIndex = state.galleryPreviewIndex + direction;
-  if (nextIndex < 0 || nextIndex >= state.photos.length) return;
-  state.galleryPreviewIndex = nextIndex;
+  state.galleryPreview = reduceGalleryPreview(
+    state.galleryPreview,
+    { type: "navigate", direction },
+    state.photos.length,
+  );
   renderGalleryPreview();
 }
 
 function renderGalleryPreview() {
-  const photo = state.photos[state.galleryPreviewIndex];
+  const photo = state.photos[state.galleryPreview.index];
   if (!photo) return;
+  const controls = controlStates(
+    state.photos.length,
+    state.galleryPreview.index,
+  );
   elements.galleryPreviewImage.src = photo.url;
   elements.galleryPreviewImage.alt = photo.name;
   elements.galleryPreviewName.textContent = photo.name;
-  elements.galleryPreviewPosition.textContent = `${state.galleryPreviewIndex + 1} of ${state.photos.length}`;
-  elements.previousPhoto.disabled = state.galleryPreviewIndex === 0;
-  elements.nextPhoto.disabled = state.galleryPreviewIndex === state.photos.length - 1;
+  elements.galleryPreviewPosition.textContent = `${state.galleryPreview.index + 1} of ${state.photos.length}`;
+  elements.previousPhoto.disabled = controls.previousDisabled;
+  elements.nextPhoto.disabled = controls.nextDisabled;
 }
 
 function handleGalleryPreviewKeydown(event) {

@@ -3,17 +3,11 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const {
-  applySavedOrder,
-  isSupportedImage,
-  outputName,
-  validateOptions,
-} = require("./export-utils");
-const {
-  MANIFEST_FILENAME,
-  loadExportManifest,
-  saveExportManifest,
-} = require("./manifest-store");
+const { loadAlbumState } = require("./album-state");
+const { isSupportedImage } = require("./export-utils");
+const { resolveImageMagick } = require("./image-magick");
+const { MANIFEST_FILENAME } = require("./manifest-store");
+const { exportAlbum } = require("./photo-exporter");
 
 let mainWindow;
 
@@ -72,12 +66,10 @@ ipcMain.handle("folder:open", async () => {
   let projectLoaded = false;
   let loadWarning = null;
   try {
-    const manifest = await loadExportManifest(folder);
-    if (manifest) {
-      images = applySavedOrder(images, manifest.photos);
-      savedOptions = manifest.options;
-      projectLoaded = true;
-    }
+    const albumState = await loadAlbumState(folder, images);
+    images = albumState.images;
+    savedOptions = albumState.options;
+    projectLoaded = albumState.projectLoaded;
   } catch (error) {
     loadWarning = `Could not load ${MANIFEST_FILENAME}: ${error.message}`;
   }
@@ -96,60 +88,34 @@ ipcMain.handle("folder:reveal", async (_event, folder) => {
 });
 
 ipcMain.handle("photos:export", async (_event, request) => {
-  const options = validateOptions(request?.options);
-  const folder = request?.folder;
-  const photos = request?.photos;
-  if (typeof folder !== "string" || !Array.isArray(photos) || photos.length === 0) {
-    throw new Error("Open a folder containing photos before exporting.");
-  }
-
-  const outputFolder = path.join(folder, "output");
-  await fs.mkdir(outputFolder, { recursive: true });
-
-  for (let index = 0; index < photos.length; index += 1) {
-    const source = photos[index]?.path;
-    if (typeof source !== "string" || path.dirname(source) !== folder) {
-      throw new Error("The photo list contains an invalid file.");
-    }
-    const destination = path.join(outputFolder, outputName(index, photos.length));
-    await runMagick([
-      source,
-      "-auto-orient",
-      "-resize",
-      options.resize,
-      "-quality",
-      String(options.quality),
-      destination,
-    ]);
-    mainWindow?.webContents.send("photos:progress", {
-      current: index + 1,
-      total: photos.length,
-    });
-  }
-
-  const manifestPath = await saveExportManifest(
-    folder,
-    photos.map((photo) => path.basename(photo.path)),
-    options,
-  );
-
-  return {
-    outputFolder,
-    manifestPath,
-    count: photos.length,
-  };
+  return exportAlbum({
+    folder: request?.folder,
+    photos: request?.photos,
+    options: request?.options,
+    runMagick,
+    onProgress: (progress) => {
+      mainWindow?.webContents.send("photos:progress", progress);
+    },
+  });
 });
 
-function runMagick(args) {
+async function runMagick(args) {
+  const executable = await resolveImageMagick();
   return new Promise((resolve, reject) => {
-    const child = spawn("magick", args, { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(executable, args, {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
     let stderr = "";
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
     });
     child.on("error", (error) => {
       if (error.code === "ENOENT") {
-        reject(new Error("ImageMagick was not found. Install it with: brew install imagemagick"));
+        reject(
+          new Error(
+            "ImageMagick was not found. Install it with: brew install imagemagick",
+          ),
+        );
       } else {
         reject(error);
       }

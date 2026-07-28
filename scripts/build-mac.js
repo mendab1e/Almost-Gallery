@@ -24,9 +24,14 @@ async function build() {
     appCategoryType: "public.app-category.photography",
     icon: path.join(root, "assets", "icon.icns"),
     ignore: [
+      /^\/\.gitignore$/,
+      /^\/assets(?:\/|$)/,
       /^\/dist(?:\/|$)/,
+      /^\/node_modules(?:\/|$)/,
+      /^\/package-lock\.json$/,
       /^\/test(?:\/|$)/,
       /^\/scripts(?:\/|$)/,
+      /^\/tmp(?:\/|$)/,
       /^\/README\.md$/,
     ],
   });

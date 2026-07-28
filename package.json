@@ -7,6 +7,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
+    "icon": "node scripts/create-icns.js",
     "dist": "node scripts/build-mac.js"
   },
   "devDependencies": {
@@ -14,7 +15,6 @@
     "electron": "^43.2.0"
   },
   "productName": "Almost Gallery",
-  "author": "",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22.12.0"
