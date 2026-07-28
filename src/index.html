@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self'; script-src 'self'" />
+    <title>Almost Gallery</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="brand">
+        <span class="eyebrow">Hugo photo workflow</span>
+        <h1>Almost Gallery</h1>
+      </div>
+      <div class="actions">
+        <button id="open-button" class="button secondary">Open folder</button>
+        <button id="options-button" class="button secondary">Options</button>
+        <button id="export-button" class="button primary" disabled>Save to output</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="empty-state" class="empty-state">
+        <div class="empty-icon">＋</div>
+        <h2>Choose a folder of photographs</h2>
+        <p>Then drag the images into your publishing order.</p>
+        <button id="empty-open-button" class="button primary">Open photo folder</button>
+      </section>
+
+      <section id="workspace" class="workspace hidden">
+        <div class="folder-row">
+          <div>
+            <p id="folder-name" class="folder-name"></p>
+            <p id="photo-count" class="muted"></p>
+          </div>
+          <p class="hint">Drag to reorder · Export order runs left to right, top to bottom</p>
+        </div>
+        <div id="photo-grid" class="photo-grid" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <div id="status" class="status hidden" role="status"></div>
+
+    <dialog id="options-dialog">
+      <form id="options-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">ImageMagick settings</span>
+            <h2>Export options</h2>
+          </div>
+          <button type="button" id="close-options" class="icon-button" aria-label="Close">×</button>
+        </div>
+        <label>
+          Resize geometry
+          <input id="resize-input" name="resize" value="2000x2000" required pattern="\d+x\d+[&gt;&lt;^!]?" />
+          <small>For example: 1000x1000</small>
+        </label>
+        <label>
+          JPEG quality
+          <input id="quality-input" name="quality" type="number" value="85" min="1" max="100" required />
+        </label>
+        <p id="options-error" class="error"></p>
+        <div class="dialog-actions">
+          <button type="button" id="reset-options" class="button secondary">Reset defaults</button>
+          <button type="submit" class="button primary">Apply options</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

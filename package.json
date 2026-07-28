@@ -1,0 +1,25 @@
+{
+  "name": "almost-gallery",
+  "version": "1.0.0",
+  "description": "A macOS photo ordering and export tool for Hugo galleries.",
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "dist": "node scripts/build-mac.js"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.0.4",
+    "electron": "^43.2.0"
+  },
+  "productName": "Almost Gallery",
+  "author": "",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "allowScripts": {
+    "electron@43.2.0": true
+  }
+}
