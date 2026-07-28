@@ -4,6 +4,8 @@ const state = {
   options: { resize: "2000x2000", quality: 85 },
   draggingId: null,
   previewSizeIndex: 2,
+  galleryPreviewIndex: 0,
+  suppressPreviewClick: false,
 };
 
 const previewSizes = [120, 155, 190, 240, 300];
@@ -23,6 +25,13 @@ const elements = {
   optionsError: document.querySelector("#options-error"),
   previewSmaller: document.querySelector("#preview-smaller"),
   previewLarger: document.querySelector("#preview-larger"),
+  galleryPreviewButton: document.querySelector("#gallery-preview-button"),
+  galleryPreviewDialog: document.querySelector("#gallery-preview-dialog"),
+  galleryPreviewImage: document.querySelector("#gallery-preview-image"),
+  galleryPreviewName: document.querySelector("#gallery-preview-name"),
+  galleryPreviewPosition: document.querySelector("#gallery-preview-position"),
+  previousPhoto: document.querySelector("#previous-photo"),
+  nextPhoto: document.querySelector("#next-photo"),
 };
 
 document.querySelector("#open-button").addEventListener("click", openFolder);
@@ -37,6 +46,14 @@ elements.form.addEventListener("submit", applyOptions);
 elements.exportButton.addEventListener("click", exportPhotos);
 elements.previewSmaller.addEventListener("click", () => changePreviewSize(-1));
 elements.previewLarger.addEventListener("click", () => changePreviewSize(1));
+elements.galleryPreviewButton.addEventListener("click", () => openGalleryPreview(0));
+document.querySelector("#close-gallery-preview").addEventListener("click", closeGalleryPreview);
+elements.previousPhoto.addEventListener("click", () => navigateGalleryPreview(-1));
+elements.nextPhoto.addEventListener("click", () => navigateGalleryPreview(1));
+elements.galleryPreviewDialog.addEventListener("keydown", handleGalleryPreviewKeydown);
+elements.galleryPreviewDialog.addEventListener("close", () => {
+  elements.galleryPreviewImage.removeAttribute("src");
+});
 window.galleryApi.onProgress(({ current, total }) => {
   showStatus(`Processing photo ${current} of ${total}…`, "busy");
 });
@@ -67,6 +84,7 @@ function render() {
   elements.empty.classList.toggle("hidden", hasFolder);
   elements.workspace.classList.toggle("hidden", !hasFolder);
   elements.exportButton.disabled = state.photos.length === 0;
+  elements.galleryPreviewButton.disabled = state.photos.length === 0;
   if (!hasFolder) return;
 
   elements.folderName.textContent = state.folder.split("/").pop();
@@ -85,6 +103,10 @@ function createPhotoCard(photo, index) {
   image.src = photo.url;
   image.alt = photo.name;
   image.draggable = false;
+  image.title = "Open gallery preview";
+  image.addEventListener("click", () => {
+    if (!state.suppressPreviewClick) openGalleryPreview(index);
+  });
 
   const meta = document.createElement("div");
   meta.className = "photo-meta";
@@ -100,12 +122,16 @@ function createPhotoCard(photo, index) {
 
   card.addEventListener("dragstart", () => {
     state.draggingId = photo.id;
+    state.suppressPreviewClick = true;
     card.classList.add("dragging");
   });
   card.addEventListener("dragend", () => {
     state.draggingId = null;
     card.classList.remove("dragging");
     document.querySelectorAll(".drag-over").forEach((item) => item.classList.remove("drag-over"));
+    window.setTimeout(() => {
+      state.suppressPreviewClick = false;
+    }, 100);
   });
   card.addEventListener("dragover", (event) => {
     event.preventDefault();
@@ -142,6 +168,45 @@ function updatePreviewSize() {
   elements.grid.style.setProperty("--preview-size", `${size}px`);
   elements.previewSmaller.disabled = state.previewSizeIndex === 0;
   elements.previewLarger.disabled = state.previewSizeIndex === previewSizes.length - 1;
+}
+
+function openGalleryPreview(index) {
+  if (state.photos.length === 0) return;
+  state.galleryPreviewIndex = Math.max(0, Math.min(state.photos.length - 1, index));
+  renderGalleryPreview();
+  if (!elements.galleryPreviewDialog.open) elements.galleryPreviewDialog.showModal();
+}
+
+function closeGalleryPreview() {
+  elements.galleryPreviewDialog.close();
+}
+
+function navigateGalleryPreview(direction) {
+  const nextIndex = state.galleryPreviewIndex + direction;
+  if (nextIndex < 0 || nextIndex >= state.photos.length) return;
+  state.galleryPreviewIndex = nextIndex;
+  renderGalleryPreview();
+}
+
+function renderGalleryPreview() {
+  const photo = state.photos[state.galleryPreviewIndex];
+  if (!photo) return;
+  elements.galleryPreviewImage.src = photo.url;
+  elements.galleryPreviewImage.alt = photo.name;
+  elements.galleryPreviewName.textContent = photo.name;
+  elements.galleryPreviewPosition.textContent = `${state.galleryPreviewIndex + 1} of ${state.photos.length}`;
+  elements.previousPhoto.disabled = state.galleryPreviewIndex === 0;
+  elements.nextPhoto.disabled = state.galleryPreviewIndex === state.photos.length - 1;
+}
+
+function handleGalleryPreviewKeydown(event) {
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    navigateGalleryPreview(-1);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    navigateGalleryPreview(1);
+  }
 }
 
 function showOptions() {

@@ -17,10 +17,12 @@ async function build() {
     platform: "darwin",
     arch: process.arch,
     overwrite: true,
+    quiet: true,
     asar: true,
     prune: true,
     appBundleId: "com.almostgallery.app",
     appCategoryType: "public.app-category.photography",
+    icon: path.join(root, "assets", "icon.icns"),
     ignore: [
       /^\/dist(?:\/|$)/,
       /^\/test(?:\/|$)/,

@@ -16,7 +16,7 @@
       <div class="actions">
         <button id="open-button" class="button secondary">Open folder</button>
         <button id="options-button" class="button secondary">Options</button>
-        <button id="export-button" class="button primary" disabled>Save to output</button>
+        <button id="export-button" class="button primary" disabled>Export</button>
       </div>
     </header>
 
@@ -36,11 +36,12 @@
           </div>
           <div class="grid-tools">
             <p class="hint">Drag to reorder · Export order runs left to right, top to bottom</p>
-            <div class="preview-controls" aria-label="Preview size">
-              <span>Preview size</span>
+            <div class="preview-controls" aria-label="Grid size">
+              <span>Grid size</span>
               <button id="preview-smaller" type="button" aria-label="Make previews smaller" title="Make previews smaller">−</button>
               <button id="preview-larger" type="button" aria-label="Make previews larger" title="Make previews larger">+</button>
             </div>
+            <button id="gallery-preview-button" class="preview-launch" type="button">Gallery preview</button>
           </div>
         </div>
         <div id="photo-grid" class="photo-grid" aria-live="polite"></div>
@@ -73,6 +74,23 @@
           <button type="submit" class="button primary">Apply options</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="gallery-preview-dialog" class="gallery-preview-dialog" aria-label="Gallery preview">
+      <div class="gallery-preview-shell">
+        <header class="gallery-preview-header">
+          <div>
+            <p id="gallery-preview-name" class="gallery-preview-name"></p>
+            <p id="gallery-preview-position" class="gallery-preview-position"></p>
+          </div>
+          <button id="close-gallery-preview" class="gallery-preview-close" type="button" aria-label="Close gallery preview">×</button>
+        </header>
+        <div class="gallery-preview-stage">
+          <button id="previous-photo" class="gallery-arrow" type="button" aria-label="Previous photo" title="Previous photo">←</button>
+          <img id="gallery-preview-image" alt="" />
+          <button id="next-photo" class="gallery-arrow" type="button" aria-label="Next photo" title="Next photo">→</button>
+        </div>
+      </div>
     </dialog>
 
     <script src="renderer.js"></script>
