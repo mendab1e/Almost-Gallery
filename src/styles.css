@@ -78,11 +78,12 @@ main { padding: 30px 36px 88px; }
 .preview-controls button:hover:not(:disabled) { border-color: #b8bab4; background: white; }
 .preview-controls button:disabled { cursor: not-allowed; opacity: .38; }
 .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--preview-size, 190px), 100%), 1fr)); gap: 16px; }
-.photo-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 2px 8px rgba(20,25,20,.04); cursor: grab; transition: opacity .14s, transform .14s, box-shadow .14s; }
+.photo-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 2px 8px rgba(20,25,20,.04); cursor: grab; content-visibility: auto; contain-intrinsic-size: auto 230px; transition: opacity .14s, transform .14s, box-shadow .14s; }
 .photo-card:active { cursor: grabbing; }
 .photo-card.dragging { opacity: .4; }
 .photo-card.drag-over { transform: translateY(-3px); box-shadow: 0 0 0 3px #86a896, 0 8px 24px rgba(20,25,20,.12); }
 .photo-card img { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; background: #e8e6e0; }
+.photo-card img:not([src]) { background: linear-gradient(110deg, #e8e6e0 25%, #efede8 45%, #e8e6e0 65%); }
 .photo-meta { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 11px; }
 .order { flex: 0 0 auto; color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 700; }
 .source-name { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -105,7 +106,7 @@ small { color: var(--muted); font-weight: 400; }
 .dialog-actions { display: flex; justify-content: space-between; }
 
 .gallery-preview-dialog { width: calc(100vw - 48px); max-width: none; height: calc(100vh - 48px); max-height: none; border-color: #30342f; border-radius: 14px; color: white; background: #111411; }
-.gallery-preview-dialog::backdrop { background: rgba(5,7,5,.84); backdrop-filter: blur(8px); }
+.gallery-preview-dialog::backdrop { background: rgba(5,7,5,.88); }
 .gallery-preview-shell { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
 .gallery-preview-header { display: flex; align-items: center; justify-content: space-between; min-height: 68px; padding: 13px 16px 13px 22px; border-bottom: 1px solid #30342f; }
 .gallery-preview-name { max-width: min(70vw, 720px); overflow: hidden; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }

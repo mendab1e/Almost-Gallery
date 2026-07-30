@@ -6,6 +6,9 @@ Hugo gallery.
 ## Features
 
 - Opens folders containing JPG, JPEG, PNG, WebP, TIFF, HEIC, and HEIF images.
+- Generates 640px thumbnails progressively with bounded background work and
+  keeps them in the macOS cache. Source photos and album folders are untouched.
+- Reuses cached thumbnails until a source photo changes.
 - Initially sorts photos naturally by filename.
 - Reorders photos with drag and drop.
 - Changes grid thumbnail size with the −/+ controls.
@@ -90,9 +93,9 @@ npm test
 
 The test suite covers filename generation, supported formats, option and
 manifest validation, manifest filesystem behavior, album restoration,
-ImageMagick discovery, atomic exports and failure recovery, drag ordering, grid
-size boundaries, gallery-preview navigation, control states, and folder-open
-warnings.
+ImageMagick discovery, cached-thumbnail generation and fallback behavior,
+atomic exports and failure recovery, drag ordering, grid size boundaries,
+gallery-preview navigation, control states, and folder-open warnings.
 
 To check dependency advisories:
 

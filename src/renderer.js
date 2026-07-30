@@ -5,10 +5,13 @@ const state = {
   draggingId: null,
   previewSizeIndex: 2,
   galleryPreview: { open: false, index: 0 },
+  galleryPreloads: [],
   suppressPreviewClick: false,
 };
 
 const previewSizes = [120, 155, 190, 240, 300];
+const photoCards = new Map();
+const photoImages = new Map();
 const {
   adjustGridSizeIndex,
   controlStates,
@@ -65,9 +68,17 @@ elements.galleryPreviewDialog.addEventListener("close", () => {
     state.photos.length,
   );
   elements.galleryPreviewImage.removeAttribute("src");
+  state.galleryPreloads = [];
 });
 window.galleryApi.onProgress(({ current, total }) => {
   showStatus(`Processing photo ${current} of ${total}…`, "busy");
+});
+window.galleryApi.onThumbnail(({ folder, id, url, failed }) => {
+  if (folder !== state.folder) return;
+  const image = photoImages.get(id);
+  if (!image) return;
+  image.src = url;
+  image.classList.toggle("original-fallback", failed);
 });
 updatePreviewSize();
 
@@ -79,6 +90,7 @@ async function openFolder() {
     state.photos = result.images;
     state.options = result.options || { resize: "2000x2000", quality: 85 };
     render();
+    void requestThumbnails(result.folder, result.images);
     const status = folderOpenStatus(result);
     if (status) showStatus(status.message, status.kind);
   } catch (error) {
@@ -98,6 +110,8 @@ function render() {
   elements.folderName.textContent = state.folder.split("/").pop();
   elements.folderName.title = state.folder;
   elements.photoCount.textContent = `${state.photos.length} photo${state.photos.length === 1 ? "" : "s"}`;
+  photoCards.clear();
+  photoImages.clear();
   elements.grid.replaceChildren(...state.photos.map(createPhotoCard));
 }
 
@@ -108,12 +122,18 @@ function createPhotoCard(photo, index) {
   card.dataset.id = photo.id;
 
   const image = document.createElement("img");
-  image.src = photo.url;
   image.alt = photo.name;
   image.draggable = false;
+  image.loading = "lazy";
+  image.decoding = "async";
   image.title = "Open gallery preview";
   image.addEventListener("click", () => {
-    if (!state.suppressPreviewClick) openGalleryPreview(index);
+    const currentIndex = state.photos.findIndex(
+      (item) => item.id === photo.id,
+    );
+    if (!state.suppressPreviewClick && currentIndex >= 0) {
+      openGalleryPreview(currentIndex);
+    }
   });
 
   const meta = document.createElement("div");
@@ -127,6 +147,8 @@ function createPhotoCard(photo, index) {
   name.title = photo.name;
   meta.append(order, name);
   card.append(image, meta);
+  photoCards.set(photo.id, card);
+  photoImages.set(photo.id, image);
 
   card.addEventListener("dragstart", () => {
     state.draggingId = photo.id;
@@ -158,7 +180,29 @@ function movePhoto(sourceId, targetId) {
   const reordered = movePhotoById(state.photos, sourceId, targetId);
   if (reordered === state.photos) return;
   state.photos = reordered;
-  render();
+  syncGridOrder();
+}
+
+function syncGridOrder() {
+  const fragment = document.createDocumentFragment();
+  state.photos.forEach((photo, index) => {
+    const card = photoCards.get(photo.id);
+    if (!card) return;
+    card.querySelector(".order").textContent = String(index).padStart(3, "0");
+    fragment.append(card);
+  });
+  elements.grid.append(fragment);
+}
+
+async function requestThumbnails(folder, photos) {
+  try {
+    await window.galleryApi.generateThumbnails({
+      folder,
+      photos: photos.map(({ id, path }) => ({ id, path })),
+    });
+  } catch (error) {
+    if (folder === state.folder) showStatus(error.message, "error");
+  }
 }
 
 function changePreviewSize(direction) {
@@ -214,6 +258,19 @@ function renderGalleryPreview() {
   elements.galleryPreviewPosition.textContent = `${state.galleryPreview.index + 1} of ${state.photos.length}`;
   elements.previousPhoto.disabled = controls.previousDisabled;
   elements.nextPhoto.disabled = controls.nextDisabled;
+  preloadAdjacentGalleryPhotos();
+}
+
+function preloadAdjacentGalleryPhotos() {
+  state.galleryPreloads = [-1, 1]
+    .map((offset) => state.photos[state.galleryPreview.index + offset])
+    .filter(Boolean)
+    .map((photo) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = photo.url;
+      return image;
+    });
 }
 
 function handleGalleryPreviewKeydown(event) {

@@ -8,8 +8,11 @@ const { isSupportedImage } = require("./export-utils");
 const { resolveImageMagick } = require("./image-magick");
 const { MANIFEST_FILENAME } = require("./manifest-store");
 const { exportAlbum } = require("./photo-exporter");
+const { generateThumbnails } = require("./thumbnail-service");
 
 let mainWindow;
+let imageMagickExecutable;
+let thumbnailGenerationId = 0;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -87,6 +90,22 @@ ipcMain.handle("folder:reveal", async (_event, folder) => {
   if (typeof folder === "string") await shell.openPath(folder);
 });
 
+ipcMain.handle("thumbnails:generate", async (event, request) => {
+  const generationId = ++thumbnailGenerationId;
+  return generateThumbnails({
+    folder: request?.folder,
+    photos: request?.photos,
+    cacheFolder: path.join(app.getPath("cache"), "almost-gallery-thumbnails"),
+    runMagick,
+    onThumbnail: (thumbnail) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send("photos:thumbnail", thumbnail);
+      }
+    },
+    shouldContinue: () => generationId === thumbnailGenerationId,
+  });
+});
+
 ipcMain.handle("photos:export", async (_event, request) => {
   return exportAlbum({
     folder: request?.folder,
@@ -100,9 +119,11 @@ ipcMain.handle("photos:export", async (_event, request) => {
 });
 
 async function runMagick(args) {
-  const executable = await resolveImageMagick();
+  if (!imageMagickExecutable) {
+    imageMagickExecutable = await resolveImageMagick();
+  }
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {
+    const child = spawn(imageMagickExecutable, args, {
       stdio: ["ignore", "ignore", "pipe"],
     });
     let stderr = "";
@@ -111,6 +132,7 @@ async function runMagick(args) {
     });
     child.on("error", (error) => {
       if (error.code === "ENOENT") {
+        imageMagickExecutable = null;
         reject(
           new Error(
             "ImageMagick was not found. Install it with: brew install imagemagick",
