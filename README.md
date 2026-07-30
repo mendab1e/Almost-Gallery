@@ -1,14 +1,28 @@
 # Almost Gallery
 
-A macOS Electron app for arranging and preparing photos for a filename-sorted
-Hugo gallery.
+Almost Gallery is an Electron application for preparing photos for the
+workflow of the
+[nicokaiser/hugo-theme-gallery](https://github.com/nicokaiser/hugo-theme-gallery/)
+theme for Hugo.
+
+
+![Image](https://github.com/user-attachments/assets/b7b9a98d-cdfa-4114-a397-efbb5af4a5ca)
+
+
+The theme displays album photos in a configurable order, but its default is to
+sort image resources by `Name` — the filename. This makes the filenames part of
+the gallery layout: changing the visual order normally means manually renaming
+every photo so that alphabetical sorting produces the desired sequence.
+
+Almost Gallery replaces that inconvenient manual step with a visual workflow.
+Open an album folder, arrange its photos in a drag-and-drop grid, preview the
+result, and export through ImageMagick. The exported files are resized,
+optimized, and named `000.jpg`, `001.jpg`, `002.jpg`, and so on, so their
+filename order matches the order chosen in the grid.
 
 ## Features
 
 - Opens folders containing JPG, JPEG, PNG, WebP, TIFF, HEIC, and HEIF images.
-- Generates 640px thumbnails progressively with bounded background work and
-  keeps them in the macOS cache. Source photos and album folders are untouched.
-- Reuses cached thumbnails until a source photo changes.
 - Initially sorts photos naturally by filename.
 - Reorders photos with drag and drop.
 - Changes grid thumbnail size with the −/+ controls.
@@ -30,7 +44,6 @@ Hugo gallery.
 
 ## Requirements
 
-- macOS
 - Node.js 22.12 or newer
 - ImageMagick 7
 
@@ -103,17 +116,6 @@ To check dependency advisories:
 npm audit
 ```
 
-## App icon
-
-The active source icon is `assets/icon.png`. Regenerate its size variants and
-native macOS ICNS file with:
-
-```sh
-npm run icon
-```
-
-This updates `assets/icon.iconset/` and `assets/icon.icns`.
-
 ## Build the macOS app
 
 ```sh
@@ -122,5 +124,4 @@ npm run dist
 
 The `.app`, `.zip`, and `.dmg` are written to `dist/`. The build targets the
 current Mac architecture and uses Electron Packager plus native macOS tools.
-The local build is not signed or notarized; configure an Apple Developer
-certificate and notarization before distributing it to other Macs.
+The local build is not signed or notarized.
