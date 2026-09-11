@@ -68,11 +68,13 @@ ipcMain.handle("folder:open", async () => {
   let savedOptions = null;
   let projectLoaded = false;
   let loadWarning = null;
+  let savedPhotos = null;
   try {
     const albumState = await loadAlbumState(folder, images);
     images = albumState.images;
     savedOptions = albumState.options;
     projectLoaded = albumState.projectLoaded;
+    savedPhotos = albumState.savedPhotos || null;
   } catch (error) {
     loadWarning = `Could not load ${MANIFEST_FILENAME}: ${error.message}`;
   }
@@ -83,6 +85,7 @@ ipcMain.handle("folder:open", async () => {
     options: savedOptions,
     projectLoaded,
     loadWarning,
+    savedPhotos,
   };
 });
 

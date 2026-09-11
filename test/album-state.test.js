@@ -35,6 +35,7 @@ test("loads saved options and order while appending newly added photos", async (
     ],
     options: { resize: "1200x1200", quality: 82 },
     projectLoaded: true,
+    savedPhotos: ["03.jpg", "missing.jpg", "01.jpg", "02.jpg"],
   });
 });
 

@@ -14,6 +14,7 @@ async function loadAlbumState(folder, images) {
     images: applySavedOrder(images, manifest.photos),
     options: manifest.options,
     projectLoaded: true,
+    savedPhotos: manifest.photos,
   };
 }
 

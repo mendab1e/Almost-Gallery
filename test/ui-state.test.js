@@ -88,3 +88,69 @@ test("folder-open status prioritizes empty folders and manifest warnings", () =>
     null,
   );
 });
+
+const {
+  insertPhoto,
+  reduceOrderHistory,
+  exportSignature,
+  exportStateLabel,
+  resizeDescription,
+} = require("../src/ui-state");
+
+test("insertion uses explicit before and after edges in both directions", () => {
+  const photos = ["a", "b", "c", "d"].map((id) => ({ id }));
+  const ids = (items) => items.map((item) => item.id);
+  assert.deepEqual(ids(insertPhoto(photos, "a", "c", false)), ["b", "a", "c", "d"]);
+  assert.deepEqual(ids(insertPhoto(photos, "a", "c", true)), ["b", "c", "a", "d"]);
+  assert.deepEqual(ids(insertPhoto(photos, "d", "a", false)), ["d", "a", "b", "c"]);
+  assert.deepEqual(ids(insertPhoto(photos, "d", "a", true)), ["a", "d", "b", "c"]);
+  assert.equal(insertPhoto(photos, "a", "b", false), photos);
+  assert.equal(insertPhoto(photos, "b", "a", true), photos);
+  assert.equal(insertPhoto(photos, "a", "a", true), photos);
+  assert.equal(insertPhoto(photos, "missing", "a", true), photos);
+  assert.equal(insertPhoto(photos, "a", "missing", false), photos);
+});
+
+test("history supports repeated undo, redo, boundaries and branching", () => {
+  const photos = ["a", "b", "c"].map((id) => ({ id }));
+  const initial = { past: [], present: photos, future: [] };
+  assert.equal(reduceOrderHistory(initial, { type: "undo" }), initial);
+  assert.equal(reduceOrderHistory(initial, { type: "redo" }), initial);
+  assert.equal(reduceOrderHistory(initial, { type: "move", photos }), initial);
+  const moved = movePhotoById(photos, "a", "c");
+  const history = reduceOrderHistory(initial, { type: "move", photos: moved });
+  const undone = reduceOrderHistory(history, { type: "undo" });
+  assert.equal(undone.present, photos);
+  assert.deepEqual(reduceOrderHistory(undone, { type: "redo" }), history);
+  const branched = reduceOrderHistory(undone, {
+    type: "move", photos: movePhotoById(photos, "c", "a"),
+  });
+  assert.deepEqual(branched.future, []);
+  const second = reduceOrderHistory(history, { type: "move", photos });
+  assert.equal(reduceOrderHistory(reduceOrderHistory(second, { type: "undo" }), { type: "undo" }).present, photos);
+  assert.equal(movePhotoById(photos, "a", undefined), photos);
+  assert.equal(movePhotoById(photos, "c", undefined), photos);
+});
+
+test("export status tracks order, options, added and removed photos", () => {
+  const photos = [{ name: "a.jpg" }, { name: "b.jpg" }];
+  const options = { resize: "2000x2000", quality: 85 };
+  const saved = exportSignature(photos.map((photo) => photo.name), options);
+  assert.equal(exportStateLabel(photos, options, null), "Not exported yet");
+  assert.equal(exportStateLabel(photos, options, saved), "Export up to date");
+  for (const changed of [[...photos].reverse(), photos.slice(1), [...photos, { name: "c.jpg" }]]) {
+    assert.equal(exportStateLabel(changed, options, saved), "Changes since last export");
+  }
+  assert.equal(exportStateLabel(photos, { ...options, quality: 90 }, saved), "Changes since last export");
+  assert.equal(exportStateLabel(photos, { ...options, resize: "1000x1000>" }, saved), "Changes since last export");
+  assert.equal(exportStateLabel(photos, options, saved), "Export up to date");
+});
+
+test("resize descriptions distinguish fit, shrink, enlarge, cover and stretch", () => {
+  assert.equal(resizeDescription("2000x2000"), "Fit within 2000 × 2000");
+  assert.equal(resizeDescription("2000x1000>"), "Shrink to fit 2000 × 1000");
+  assert.equal(resizeDescription("2000x1000<"), "Enlarge to fit 2000 × 1000");
+  assert.equal(resizeDescription("2000x1000^"), "Cover 2000 × 1000");
+  assert.equal(resizeDescription("2000x1000!"), "Stretch to 2000 × 1000");
+  assert.equal(resizeDescription("invalid"), "invalid");
+});

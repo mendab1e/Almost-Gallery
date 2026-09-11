@@ -15,6 +15,55 @@
       return reordered;
     }
 
+    function insertPhoto(photos, sourceId, targetId, after) {
+      if (sourceId === targetId) return photos;
+      const source = photos.find((photo) => photo.id === sourceId);
+      if (!source || !photos.some((photo) => photo.id === targetId)) return photos;
+      const next = photos.filter((photo) => photo.id !== sourceId);
+      const index = next.findIndex((photo) => photo.id === targetId);
+      next.splice(index + (after ? 1 : 0), 0, source);
+      return next.every((photo, i) => photo === photos[i]) ? photos : next;
+    }
+
+    function reduceOrderHistory(history, action) {
+      if (action.type === "undo" && history.past.length) {
+        return {
+          past: history.past.slice(0, -1),
+          present: history.past.at(-1),
+          future: [history.present, ...history.future],
+        };
+      }
+      if (action.type === "redo" && history.future.length) {
+        return {
+          past: [...history.past, history.present],
+          present: history.future[0],
+          future: history.future.slice(1),
+        };
+      }
+      if (action.type === "move" && action.photos !== history.present) {
+        return { past: [...history.past, history.present], present: action.photos, future: [] };
+      }
+      return history;
+    }
+
+    function exportSignature(names, options) {
+      return JSON.stringify([names, options.resize, options.quality]);
+    }
+
+    function exportStateLabel(photos, options, savedSignature) {
+      if (savedSignature === null) return "Not exported yet";
+      return exportSignature(photos.map((photo) => photo.name), options) === savedSignature
+        ? "Export up to date"
+        : "Changes since last export";
+    }
+
+    function resizeDescription(geometry) {
+      const match = /^(\d+)x(\d+)([><^!]?)$/.exec(geometry);
+      if (!match) return geometry;
+      const labels = { "": "Fit within", ">": "Shrink to fit", "<": "Enlarge to fit", "^": "Cover", "!": "Stretch to" };
+      return `${labels[match[3]]} ${match[1]} × ${match[2]}`;
+    }
+
     function adjustGridSizeIndex(current, direction, totalSizes) {
       return Math.max(0, Math.min(totalSizes - 1, current + direction));
     }
@@ -72,6 +121,11 @@
     }
 
     return {
+      insertPhoto,
+      reduceOrderHistory,
+      exportSignature,
+      exportStateLabel,
+      resizeDescription,
       adjustGridSizeIndex,
       controlStates,
       folderOpenStatus,

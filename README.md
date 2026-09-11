@@ -24,12 +24,20 @@ filename order matches the order chosen in the grid.
 
 - Opens folders containing JPG, JPEG, PNG, WebP, TIFF, HEIC, and HEIF images.
 - Initially sorts photos naturally by filename.
-- Reorders photos with drag and drop.
+- Shows complete photos in neutral thumbnail frames, without cropping.
+- Reorders photos with drag and drop; insertion markers show the exact drop edge.
+- Supports keyboard ordering: Tab to a photo, then Option + Left/Right to move
+  it one position. Enter or Space opens that photo in Preview.
+- Provides Undo and Redo buttons and Command + Z / Shift + Command + Z shortcuts
+  (Control works too). History is kept for the current open album.
 - Changes grid thumbnail size with the −/+ controls.
-- Previews one photo at a time from the toolbar or by clicking a thumbnail.
+- Previews one photo at a time using **Preview** in the toolbar or by clicking a thumbnail.
 - Navigates the gallery preview with its ←/→ buttons or the keyboard arrow keys;
   Escape closes it.
-- Configures ImageMagick resize geometry and JPEG quality. Defaults are
+- Offers width, height, and sizing controls under **Export settings**, plus
+  optional advanced ImageMagick geometry. Fit preserves the whole photo;
+  Cover preserves proportions and may exceed one dimension without cropping;
+  Exact dimensions stretches the image. Defaults are
   `2000x2000` and `85`.
 - Applies EXIF auto-orientation, converts every exported image to JPEG, and
   leaves source photos unchanged.
@@ -40,6 +48,13 @@ filename order matches the order chosen in the grid.
   `almost_gallery_output.json`.
 - Restores saved order and options when an album is reopened. Newly added
   photos are appended and missing photos are ignored.
+- Keeps the photo count, JPEG settings, and export state visible in a footer.
+  Order and settings changes, including added or removed filenames on reopening,
+  are compared with the last successful export. This status does not detect
+  changes to source image contents or externally changed/deleted output files.
+- Shows export progress and a **Show in Finder** button after successful export.
+  Opening another album, changing settings, and reordering are disabled during
+  export. Preview remains available.
 - Displays a warning and opens the album normally if its saved JSON is invalid.
 
 ## Requirements
@@ -67,7 +82,7 @@ npm install
 npm start
 ```
 
-Choose **Open folder**, arrange the grid, optionally adjust **Options**, and
+Choose **Open folder**, arrange the grid, optionally adjust **Export settings**, and
 choose **Export**. The generated photos are written to an `output` directory
 inside the selected album folder.
 

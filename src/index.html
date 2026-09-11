@@ -10,12 +10,13 @@
   <body>
     <header class="toolbar">
       <div class="brand">
-        <span class="eyebrow">Hugo photo workflow</span>
-        <h1>Almost Gallery</h1>
+        <span class="app-name">Almost Gallery</span>
+        <h1 id="folder-name">Your photo workspace</h1>
+        <p id="photo-count" class="muted">Arrange. Preview. Export.</p>
       </div>
       <div class="actions">
         <button id="open-button" class="button secondary">Open folder</button>
-        <button id="options-button" class="button secondary">Options</button>
+        <button id="gallery-preview-button" class="button secondary" disabled>Preview</button>
         <button id="export-button" class="button primary" disabled>Export</button>
       </div>
     </header>
@@ -30,39 +31,63 @@
 
       <section id="workspace" class="workspace hidden">
         <div class="folder-row">
-          <div>
-            <p id="folder-name" class="folder-name"></p>
-            <p id="photo-count" class="muted"></p>
+          <div class="history-controls">
+            <button id="undo-button" class="button secondary" disabled>Undo</button>
+            <button id="redo-button" class="button secondary" disabled>Redo</button>
           </div>
           <div class="grid-tools">
-            <p class="hint">Drag to reorder · Export order runs left to right, top to bottom</p>
+            <p id="reorder-help" class="hint">Drag to reorder · Option + ← / → to move a focused photo</p>
             <div class="preview-controls" aria-label="Grid size">
               <span>Grid size</span>
-              <button id="preview-smaller" type="button" aria-label="Make previews smaller" title="Make previews smaller">−</button>
-              <button id="preview-larger" type="button" aria-label="Make previews larger" title="Make previews larger">+</button>
+              <button id="preview-smaller" type="button" aria-label="Make previews smaller">−</button>
+              <button id="preview-larger" type="button" aria-label="Make previews larger">+</button>
             </div>
-            <button id="gallery-preview-button" class="preview-launch" type="button">Gallery preview</button>
           </div>
         </div>
         <div id="photo-grid" class="photo-grid" aria-live="polite"></div>
       </section>
     </main>
 
-    <div id="status" class="status hidden" role="status"></div>
+    <footer class="export-footer">
+      <div class="export-details">
+        <p id="export-summary">JPEG · Fit within 2000 × 2000 · Quality 85</p>
+        <p id="export-state" class="muted" aria-live="polite">Open a folder to begin</p>
+        <div id="status" class="status hidden" role="status"></div>
+        <progress id="export-progress" class="hidden" aria-label="Export progress" value="0" max="1"></progress>
+      </div>
+      <div class="actions">
+        <button id="reveal-button" class="button secondary hidden">Show in Finder</button>
+        <button id="options-button" class="button secondary">Export settings</button>
+      </div>
+    </footer>
 
     <dialog id="options-dialog">
       <form id="options-form" method="dialog">
         <div class="dialog-heading">
           <div>
-            <span class="eyebrow">ImageMagick settings</span>
-            <h2>Export options</h2>
+            <span class="eyebrow">JPEG output</span>
+            <h2>Export settings</h2>
           </div>
           <button type="button" id="close-options" class="icon-button" aria-label="Close">×</button>
         </div>
-        <label>
-          Resize geometry
-          <input id="resize-input" name="resize" value="2000x2000" required pattern="\d+x\d+[&gt;&lt;^!]?" />
-          <small>For example: 1000x1000</small>
+        <div id="simple-resize" class="dimensions">
+          <label>Width (px)<input id="width-input" type="number" min="1" step="1" value="2000" required /></label>
+          <label>Height (px)<input id="height-input" type="number" min="1" step="1" value="2000" required /></label>
+        </div>
+        <label id="fit-label">Sizing
+          <select id="fit-input">
+            <option value="">Fit within — preserve proportions</option>
+            <option value=">">Fit within — only shrink</option>
+            <option value="^">Cover dimensions — preserve proportions</option>
+            <option value="!">Exact dimensions — stretch</option>
+            <option value="<">Fit within — only enlarge</option>
+          </select>
+          <small>Fit keeps the entire photo. Cover may exceed one dimension; it does not crop.</small>
+        </label>
+        <label class="advanced-toggle"><input id="advanced-input" type="checkbox" /> Advanced ImageMagick syntax</label>
+        <label id="geometry-label" class="hidden">Resize geometry
+          <input id="resize-input" name="resize" value="2000x2000" disabled required pattern="\d+x\d+[&gt;&lt;^!]?" />
+          <small>Example: 2000x2000&gt; resizes only larger photos.</small>
         </label>
         <label>
           JPEG quality
@@ -71,7 +96,7 @@
         <p id="options-error" class="error"></p>
         <div class="dialog-actions">
           <button type="button" id="reset-options" class="button secondary">Reset defaults</button>
-          <button type="submit" class="button primary">Apply options</button>
+          <button type="submit" class="button primary">Apply settings</button>
         </div>
       </form>
     </dialog>
