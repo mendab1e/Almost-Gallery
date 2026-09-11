@@ -57,13 +57,6 @@
         : "Changes since last export";
     }
 
-    function resizeDescription(geometry) {
-      const match = /^(\d+)x(\d+)([><^!]?)$/.exec(geometry);
-      if (!match) return geometry;
-      const labels = { "": "Fit within", ">": "Shrink to fit", "<": "Enlarge to fit", "^": "Cover", "!": "Stretch to" };
-      return `${labels[match[3]]} ${match[1]} × ${match[2]}`;
-    }
-
     function adjustGridSizeIndex(current, direction, totalSizes) {
       return Math.max(0, Math.min(totalSizes - 1, current + direction));
     }
@@ -125,7 +118,6 @@
       reduceOrderHistory,
       exportSignature,
       exportStateLabel,
-      resizeDescription,
       adjustGridSizeIndex,
       controlStates,
       folderOpenStatus,

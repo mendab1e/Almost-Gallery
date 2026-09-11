@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld("galleryApi", {
   generateThumbnails: (request) =>
     ipcRenderer.invoke("thumbnails:generate", request),
   exportPhotos: (request) => ipcRenderer.invoke("photos:export", request),
-  revealFolder: (folder) => ipcRenderer.invoke("folder:reveal", folder),
+  revealFolder: () => ipcRenderer.invoke("folder:reveal"),
   onProgress: (callback) => {
     const listener = (_event, progress) => callback(progress);
     ipcRenderer.on("photos:progress", listener);

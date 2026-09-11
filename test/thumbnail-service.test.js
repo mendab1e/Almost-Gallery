@@ -126,3 +126,70 @@ test("rejects thumbnail paths outside the selected album", async (t) => {
     /invalid file/,
   );
 });
+
+test("cancellation suppresses stale results and stops scheduling", async (t) => {
+  const { album, cache } = await temporaryWorkspace(t);
+  const photos = ["a.jpg", "b.jpg", "c.jpg"].map((name) => ({ id: name, path: path.join(album, name) }));
+  await Promise.all(photos.map((photo) => fs.writeFile(photo.path, "source")));
+  let active = true;
+  let calls = 0;
+  const summary = await generateThumbnails({
+    folder: album, photos, cacheFolder: cache, concurrency: 1,
+    shouldContinue: () => active,
+    runMagick: async (args) => {
+      calls += 1;
+      active = false;
+      await fs.writeFile(args.at(-1), "thumbnail");
+    },
+    onThumbnail: () => assert.fail("stale result"),
+  });
+  assert.equal(calls, 1);
+  assert.equal(summary.cancelled, true);
+});
+
+test("overlapping requests use independent temporary files", async (t) => {
+  const { album, cache } = await temporaryWorkspace(t);
+  const source = path.join(album, "photo.jpg");
+  await fs.writeFile(source, "source");
+  const destinations = [];
+  let release;
+  const bothStarted = new Promise((resolve) => { release = resolve; });
+  const request = {
+    folder: album, photos: [{ id: source, path: source }], cacheFolder: cache,
+    runMagick: async (args) => {
+      destinations.push(args.at(-1));
+      if (destinations.length === 2) release();
+      await bothStarted;
+      await fs.writeFile(args.at(-1), "thumbnail");
+    },
+  };
+  const summaries = await Promise.all([generateThumbnails(request), generateThumbnails(request)]);
+  assert.equal(new Set(destinations).size, 2);
+  assert.ok(summaries.every((summary) => summary.failed === 0));
+  assert.equal((await fs.readdir(cache)).length, 1);
+});
+
+test("cache identity retains modification-time precision", () => {
+  assert.notEqual(
+    thumbnailPath("/cache", "/album/a.jpg", { size: 10, mtimeMs: 100.1 }),
+    thumbnailPath("/cache", "/album/a.jpg", { size: 10, mtimeMs: 100.2 }),
+  );
+});
+
+test("thumbnail workers never exceed configured concurrency", async (t) => {
+  const { album, cache } = await temporaryWorkspace(t);
+  const photos = ["a.jpg", "b.jpg", "c.jpg", "d.jpg"].map((name) => ({ id: name, path: path.join(album, name) }));
+  await Promise.all(photos.map((photo) => fs.writeFile(photo.path, "source")));
+  let active = 0;
+  let peak = 0;
+  await generateThumbnails({
+    folder: album, photos, cacheFolder: cache, concurrency: 2,
+    runMagick: async (args) => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await fs.writeFile(args.at(-1), "thumbnail");
+      active -= 1;
+    },
+  });
+  assert.ok(peak > 0 && peak <= 2);
+});

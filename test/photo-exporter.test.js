@@ -145,3 +145,64 @@ test("rejects photos outside the selected album", async (t) => {
     /invalid file/,
   );
 });
+
+for (const hasOutput of [true, false]) {
+  test(`manifest failure rolls back output (previous output: ${hasOutput})`, async (t) => {
+    const folder = await temporaryAlbum(t);
+    const source = path.join(folder, "source.jpg");
+    await fs.writeFile(source, "original");
+    if (hasOutput) {
+      await fs.mkdir(path.join(folder, "output"));
+      await fs.writeFile(path.join(folder, "output", "000.jpg"), "previous");
+    }
+    await saveExportManifest(folder, ["old.jpg"], { resize: "900x900", quality: 70 });
+    await assert.rejects(exportAlbum({
+      folder,
+      photos: [{ path: source }],
+      options: { resize: "2000x2000", quality: 85 },
+      runMagick: async (args) => fs.writeFile(args.at(-1), "new"),
+      saveManifest: async () => { throw new Error("manifest failed"); },
+    }), /manifest failed/);
+    if (hasOutput) {
+      assert.equal(await fs.readFile(path.join(folder, "output", "000.jpg"), "utf8"), "previous");
+    } else {
+      await assert.rejects(fs.access(path.join(folder, "output")), { code: "ENOENT" });
+    }
+    assert.deepEqual((await loadExportManifest(folder)).photos, ["old.jpg"]);
+  });
+}
+
+test("replacement failure restores previous output", async (t) => {
+  const { replaceOutputFolder } = require("../src/photo-exporter");
+  const folder = await temporaryAlbum(t);
+  const outputFolder = path.join(folder, "output");
+  await fs.mkdir(outputFolder);
+  await fs.writeFile(path.join(outputFolder, "000.jpg"), "previous");
+  await assert.rejects(replaceOutputFolder({
+    outputFolder,
+    stagingFolder: path.join(folder, "missing"),
+    backupFolder: path.join(folder, BACKUP_DIRECTORY),
+  }), { code: "ENOENT" });
+  assert.equal(await fs.readFile(path.join(outputFolder, "000.jpg"), "utf8"), "previous");
+});
+
+test("overlapping exports are rejected and the lock is released", async (t) => {
+  const folder = await temporaryAlbum(t);
+  const source = path.join(folder, "source.jpg");
+  await fs.writeFile(source, "original");
+  let release;
+  let started;
+  const ready = new Promise((resolve) => { started = resolve; });
+  const blocked = new Promise((resolve) => { release = resolve; });
+  const request = {
+    folder, photos: [{ path: source }], options: { resize: "2000x2000", quality: 85 },
+    runMagick: async (args) => { started(); await blocked; await fs.writeFile(args.at(-1), "new"); },
+  };
+  const first = exportAlbum(request);
+  await ready;
+  try {
+    await assert.rejects(exportAlbum(request), /already running/);
+  } finally { release(); }
+  await first;
+  await exportAlbum(request);
+});

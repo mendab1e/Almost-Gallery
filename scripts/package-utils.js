@@ -1,5 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const os = require("node:os");
 
 const KEPT_ELECTRON_LOCALES = new Set([
   "en.lproj",
@@ -50,7 +51,20 @@ async function stripUnusedElectronLocales(buildPath) {
   return removedCounts.reduce((total, count) => total + count, 0);
 }
 
+async function stageRuntime(root) {
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), "almost-gallery-runtime-"));
+  try {
+    await fs.copyFile(path.join(root, "package.json"), path.join(folder, "package.json"));
+    await fs.cp(path.join(root, "src"), path.join(folder, "src"), { recursive: true });
+    return folder;
+  } catch (error) {
+    await fs.rm(folder, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 module.exports = {
+  stageRuntime,
   KEPT_ELECTRON_LOCALES,
   removeUnusedLocales,
   stripUnusedElectronLocales,

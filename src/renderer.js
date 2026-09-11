@@ -1,11 +1,12 @@
+const { DEFAULT_OPTIONS, parseGeometry, validateOptions, resizeDescription } = window.galleryOptions;
+
 const state = {
   folder: null,
   exporting: false,
   savedSignature: null,
   outputFolder: null,
   history: { past: [], present: [], future: [] },
-  photos: [],
-  options: { resize: "2000x2000", quality: 85 },
+  options: { ...DEFAULT_OPTIONS },
   draggingId: null,
   previewSizeIndex: 2,
   galleryPreview: { open: false, index: 0 },
@@ -21,7 +22,6 @@ const {
   reduceOrderHistory,
   exportSignature,
   exportStateLabel,
-  resizeDescription,
   adjustGridSizeIndex,
   controlStates,
   folderOpenStatus,
@@ -70,7 +70,7 @@ document.querySelector("#empty-open-button").addEventListener("click", openFolde
 elements.optionsButton.addEventListener("click", showOptions);
 document.querySelector("#close-options").addEventListener("click", () => elements.dialog.close());
 document.querySelector("#reset-options").addEventListener("click", () => {
-  populateOptions({ resize: "2000x2000", quality: 85 });
+  populateOptions({ ...DEFAULT_OPTIONS });
   elements.optionsError.textContent = "";
 });
 elements.undo.addEventListener("click", () => changeHistory("undo"));
@@ -78,7 +78,7 @@ elements.redo.addEventListener("click", () => changeHistory("redo"));
 elements.reveal.addEventListener("click", async () => {
   if (!state.outputFolder) return;
   try {
-    await window.galleryApi.revealFolder(state.outputFolder);
+    await window.galleryApi.revealFolder();
   } catch (error) {
     showStatus(error.message, "error");
   }
@@ -104,7 +104,7 @@ elements.galleryPreviewDialog.addEventListener("close", () => {
   state.galleryPreview = reduceGalleryPreview(
     state.galleryPreview,
     { type: "close" },
-    state.photos.length,
+    state.history.present.length,
   );
   elements.galleryPreviewImage.removeAttribute("src");
   state.galleryPreloads = [];
@@ -115,8 +115,8 @@ window.galleryApi.onProgress(({ current, total }) => {
   elements.progress.value = current;
   showStatus(`Processing photo ${current} of ${total}…`, "busy");
 });
-window.galleryApi.onThumbnail(({ folder, id, url, failed }) => {
-  if (folder !== state.folder) return;
+window.galleryApi.onThumbnail(({ albumId, id, url, failed }) => {
+  if (albumId !== state.albumId) return;
   const image = photoImages.get(id);
   if (!image) return;
   image.src = url;
@@ -130,9 +130,9 @@ async function openFolder() {
     const result = await window.galleryApi.openFolder();
     if (!result) return;
     state.folder = result.folder;
-    state.photos = result.images;
-    state.options = result.options || { resize: "2000x2000", quality: 85 };
-    state.history = { past: [], present: state.photos, future: [] };
+    state.albumId = result.albumId;
+    state.options = result.options || { ...DEFAULT_OPTIONS };
+    state.history = { past: [], present: result.images, future: [] };
     state.savedSignature = result.savedPhotos
       ? exportSignature(result.savedPhotos, state.options)
       : null;
@@ -141,7 +141,7 @@ async function openFolder() {
     elements.status.classList.add("hidden");
     render();
     updateExportDetails();
-    void requestThumbnails(result.folder, result.images);
+    void requestThumbnails(result.albumId, result.images);
     const status = folderOpenStatus(result);
     if (status) showStatus(status.message, status.kind);
   } catch (error) {
@@ -151,7 +151,7 @@ async function openFolder() {
 
 function render() {
   const hasFolder = Boolean(state.folder);
-  const controls = controlStates(state.photos.length);
+  const controls = controlStates(state.history.present.length);
   elements.empty.classList.toggle("hidden", hasFolder);
   elements.workspace.classList.toggle("hidden", !hasFolder);
   elements.exportButton.disabled = controls.exportDisabled;
@@ -160,10 +160,10 @@ function render() {
 
   elements.folderName.textContent = state.folder.split("/").pop();
   elements.folderName.title = state.folder;
-  elements.photoCount.textContent = `${state.photos.length} photo${state.photos.length === 1 ? "" : "s"}`;
+  elements.photoCount.textContent = `${state.history.present.length} photo${state.history.present.length === 1 ? "" : "s"}`;
   photoCards.clear();
   photoImages.clear();
-  elements.grid.replaceChildren(...state.photos.map(createPhotoCard));
+  elements.grid.replaceChildren(...state.history.present.map(createPhotoCard));
   syncGridOrder();
 }
 
@@ -174,10 +174,10 @@ function createPhotoCard(photo, index) {
   card.tabIndex = 0;
   card.setAttribute("aria-describedby", "reorder-help");
   card.addEventListener("keydown", (event) => {
-    const index = state.photos.findIndex((item) => item.id === photo.id);
+    const index = state.history.present.findIndex((item) => item.id === photo.id);
     if (event.altKey && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
       event.preventDefault();
-      const target = state.photos[index + (event.key === "ArrowLeft" ? -1 : 1)];
+      const target = state.history.present[index + (event.key === "ArrowLeft" ? -1 : 1)];
       if (target) movePhoto(photo.id, target.id);
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -193,7 +193,7 @@ function createPhotoCard(photo, index) {
   image.decoding = "async";
   image.title = "Open gallery preview";
   image.addEventListener("click", () => {
-    const currentIndex = state.photos.findIndex(
+    const currentIndex = state.history.present.findIndex(
       (item) => item.id === photo.id,
     );
     if (!state.suppressPreviewClick && currentIndex >= 0) {
@@ -248,7 +248,7 @@ function createPhotoCard(photo, index) {
     event.preventDefault();
     card.classList.remove("drag-before", "drag-after");
     if (!state.exporting) {
-      commitOrder(insertPhoto(state.photos, state.draggingId, photo.id, dropAfter(event, card)));
+      commitOrder(insertPhoto(state.history.present, state.draggingId, photo.id, dropAfter(event, card)));
     }
   });
   return card;
@@ -267,37 +267,31 @@ function clearDropMarkers() {
 
 function movePhoto(sourceId, targetId) {
   if (state.exporting) return;
-  commitOrder(movePhotoById(state.photos, sourceId, targetId));
+  commitOrder(movePhotoById(state.history.present, sourceId, targetId));
 }
 
 function commitOrder(photos) {
-  if (photos === state.photos || state.exporting) return;
-  state.history = reduceOrderHistory(state.history, { type: "move", photos });
-  state.photos = state.history.present;
-  syncGridOrder();
-  updateExportDetails();
-  showStatus("Photo order updated.", "success");
+  changeHistory("move", photos);
 }
 
-function changeHistory(type) {
+function changeHistory(type, photos) {
   if (state.exporting) return;
-  const nextHistory = reduceOrderHistory(state.history, { type });
+  const nextHistory = reduceOrderHistory(state.history, { type, photos });
   if (nextHistory === state.history) return;
   state.history = nextHistory;
-  state.photos = state.history.present;
   syncGridOrder();
   updateExportDetails();
   showStatus("Photo order updated.", "success");
 }
 
 function updateExportDetails() {
-  elements.summary.textContent = `${state.photos.length} photos · JPEG · ${resizeDescription(state.options.resize)} · Quality ${state.options.quality}`;
+  elements.summary.textContent = `${state.history.present.length} photos · JPEG · ${resizeDescription(state.options.resize)} · Quality ${state.options.quality}`;
   elements.exportState.textContent = state.folder
-    ? exportStateLabel(state.photos, state.options, state.savedSignature)
+    ? exportStateLabel(state.history.present, state.options, state.savedSignature)
     : "Open a folder to begin";
   elements.undo.disabled = state.exporting || state.history.past.length === 0;
   elements.redo.disabled = state.exporting || state.history.future.length === 0;
-  elements.exportButton.disabled = state.exporting || state.photos.length === 0;
+  elements.exportButton.disabled = state.exporting || state.history.present.length === 0;
   elements.exportButton.textContent = state.exporting ? "Exporting…" : "Export";
   elements.openButton.disabled = state.exporting;
   elements.optionsButton.disabled = state.exporting;
@@ -307,11 +301,11 @@ function updateExportDetails() {
 function syncGridOrder() {
   const focused = document.activeElement;
   const fragment = document.createDocumentFragment();
-  state.photos.forEach((photo, index) => {
+  state.history.present.forEach((photo, index) => {
     const card = photoCards.get(photo.id);
     if (!card) return;
     card.querySelector(".order").textContent = String(index).padStart(3, "0");
-    card.setAttribute("aria-label", `${photo.name}, position ${index + 1} of ${state.photos.length}`);
+    card.setAttribute("aria-label", `${photo.name}, position ${index + 1} of ${state.history.present.length}`);
     fragment.append(card);
   });
   elements.grid.append(fragment);
@@ -321,14 +315,14 @@ function syncGridOrder() {
   }
 }
 
-async function requestThumbnails(folder, photos) {
+async function requestThumbnails(albumId, photos) {
   try {
     await window.galleryApi.generateThumbnails({
-      folder,
-      photos: photos.map(({ id, path }) => ({ id, path })),
+      albumId,
+      photoIds: photos.map(({ id }) => id),
     });
   } catch (error) {
-    if (folder === state.folder) showStatus(error.message, "error");
+    if (albumId === state.albumId) showStatus(error.message, "error");
   }
 }
 
@@ -352,7 +346,7 @@ function openGalleryPreview(index) {
   state.galleryPreview = reduceGalleryPreview(
     state.galleryPreview,
     { type: "open", index },
-    state.photos.length,
+    state.history.present.length,
   );
   if (!state.galleryPreview.open) return;
   renderGalleryPreview();
@@ -367,22 +361,22 @@ function navigateGalleryPreview(direction) {
   state.galleryPreview = reduceGalleryPreview(
     state.galleryPreview,
     { type: "navigate", direction },
-    state.photos.length,
+    state.history.present.length,
   );
   renderGalleryPreview();
 }
 
 function renderGalleryPreview() {
-  const photo = state.photos[state.galleryPreview.index];
+  const photo = state.history.present[state.galleryPreview.index];
   if (!photo) return;
   const controls = controlStates(
-    state.photos.length,
+    state.history.present.length,
     state.galleryPreview.index,
   );
   elements.galleryPreviewImage.src = photo.url;
   elements.galleryPreviewImage.alt = photo.name;
   elements.galleryPreviewName.textContent = photo.name;
-  elements.galleryPreviewPosition.textContent = `${state.galleryPreview.index + 1} of ${state.photos.length}`;
+  elements.galleryPreviewPosition.textContent = `${state.galleryPreview.index + 1} of ${state.history.present.length}`;
   elements.previousPhoto.disabled = controls.previousDisabled;
   elements.nextPhoto.disabled = controls.nextDisabled;
   preloadAdjacentGalleryPhotos();
@@ -390,7 +384,7 @@ function renderGalleryPreview() {
 
 function preloadAdjacentGalleryPhotos() {
   state.galleryPreloads = [-1, 1]
-    .map((offset) => state.photos[state.galleryPreview.index + offset])
+    .map((offset) => state.history.present[state.galleryPreview.index + offset])
     .filter(Boolean)
     .map((photo) => {
       const image = new Image();
@@ -413,11 +407,11 @@ function handleGalleryPreviewKeydown(event) {
 function populateOptions(options) {
   elements.resize.value = options.resize;
   elements.quality.value = String(options.quality);
-  const match = /^(\d+)x(\d+)([><^!]?)$/.exec(options.resize);
-  elements.width.value = match?.[1] || "2000";
-  elements.height.value = match?.[2] || "2000";
-  elements.fit.value = match?.[3] || "";
-  elements.advanced.checked = !match || Number(match[1]) < 1 || Number(match[2]) < 1;
+  const match = parseGeometry(options.resize);
+  elements.width.value = match?.width || "2000";
+  elements.height.value = match?.height || "2000";
+  elements.fit.value = match?.fit || "";
+  elements.advanced.checked = !match || Number(match.width) < 1 || Number(match.height) < 1;
   setOptionsMode();
 }
 
@@ -438,15 +432,15 @@ function toggleAdvanced() {
   if (elements.advanced.checked) {
     elements.resize.value = simpleGeometry();
   } else {
-    const match = /^(\d+)x(\d+)([><^!]?)$/.exec(elements.resize.value.trim());
-    if (!match || Number(match[1]) < 1 || Number(match[2]) < 1) {
+    const match = parseGeometry(elements.resize.value.trim());
+    if (!match || Number(match.width) < 1 || Number(match.height) < 1) {
       elements.advanced.checked = true;
       elements.optionsError.textContent = "Enter positive width and height before switching to simple settings.";
       return;
     }
-    elements.width.value = match[1];
-    elements.height.value = match[2];
-    elements.fit.value = match[3];
+    elements.width.value = match.width;
+    elements.height.value = match.height;
+    elements.fit.value = match.fit;
   }
   elements.optionsError.textContent = "";
   setOptionsMode();
@@ -463,30 +457,31 @@ function applyOptions(event) {
   event.preventDefault();
   const resize = elements.advanced.checked ? elements.resize.value.trim() : simpleGeometry();
   const quality = Number(elements.quality.value);
-  if (!/^\d+x\d+(?:[><^!])?$/.test(resize) || !Number.isInteger(quality) || quality < 1 || quality > 100) {
-    elements.optionsError.textContent = "Enter valid resize geometry and a quality from 1 to 100.";
+  try {
+    state.options = validateOptions({ resize, quality });
+  } catch (error) {
+    elements.optionsError.textContent = error.message;
     return;
   }
-  state.options = { resize, quality };
   elements.dialog.close();
   updateExportDetails();
   showStatus("Export settings updated.", "success");
 }
 
 async function exportPhotos() {
-  if (state.exporting || !state.photos.length) return;
+  if (state.exporting || !state.history.present.length) return;
   state.exporting = true;
-  const signature = exportSignature(state.photos.map((photo) => photo.name), state.options);
+  const signature = exportSignature(state.history.present.map((photo) => photo.name), state.options);
   elements.progress.value = 0;
-  elements.progress.max = state.photos.length;
+  elements.progress.max = state.history.present.length;
   elements.progress.classList.remove("hidden");
   elements.reveal.classList.add("hidden");
   updateExportDetails();
-  showStatus(`Preparing ${state.photos.length} photos…`, "busy");
+  showStatus(`Preparing ${state.history.present.length} photos…`, "busy");
   try {
     const result = await window.galleryApi.exportPhotos({
-      folder: state.folder,
-      photos: state.photos.map(({ path }) => ({ path })),
+      albumId: state.albumId,
+      photoIds: state.history.present.map(({ id }) => id),
       options: state.options,
     });
     state.savedSignature = signature;

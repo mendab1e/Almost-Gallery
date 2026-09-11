@@ -1,5 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { randomUUID } = require("node:crypto");
 const {
   parseExportManifest,
   serializeExportManifest,
@@ -19,11 +20,15 @@ async function loadExportManifest(folder) {
 
 async function saveExportManifest(folder, photoNames, options) {
   const manifestPath = path.join(folder, MANIFEST_FILENAME);
-  const temporaryPath = path.join(folder, `.${MANIFEST_FILENAME}.tmp`);
+  const temporaryPath = path.join(folder, `.${MANIFEST_FILENAME}.${randomUUID()}.tmp`);
   const contents = serializeExportManifest(photoNames, options);
 
-  await fs.writeFile(temporaryPath, contents, "utf8");
-  await fs.rename(temporaryPath, manifestPath);
+  try {
+    await fs.writeFile(temporaryPath, contents, { encoding: "utf8", flag: "wx" });
+    await fs.rename(temporaryPath, manifestPath);
+  } finally {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
+  }
   return manifestPath;
 }
 

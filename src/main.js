@@ -10,6 +10,11 @@ const { MANIFEST_FILENAME } = require("./manifest-store");
 const { exportAlbum } = require("./photo-exporter");
 const { generateThumbnails } = require("./thumbnail-service");
 
+const { createAlbumSession } = require("./album-session");
+const albumSession = createAlbumSession();
+let lastOutputFolder = null;
+let openingFolder = false;
+
 let mainWindow;
 let imageMagickExecutable;
 let thumbnailGenerationId = 0;
@@ -44,80 +49,97 @@ app.on("window-all-closed", () => {
 });
 
 ipcMain.handle("folder:open", async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title: "Choose a photo folder",
-    properties: ["openDirectory"],
-  });
-  if (result.canceled) return null;
-
-  const folder = result.filePaths[0];
-  const entries = await fs.readdir(folder, { withFileTypes: true });
-  let images = entries
-    .filter((entry) => entry.isFile() && isSupportedImage(entry.name))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-    .map((entry) => {
-      const filePath = path.join(folder, entry.name);
-      return {
-        id: filePath,
-        name: entry.name,
-        path: filePath,
-        url: pathToFileURL(filePath).href,
-      };
-    });
-
-  let savedOptions = null;
-  let projectLoaded = false;
-  let loadWarning = null;
-  let savedPhotos = null;
+  if (openingFolder || albumSession.exporting) return null;
+  openingFolder = true;
   try {
-    const albumState = await loadAlbumState(folder, images);
-    images = albumState.images;
-    savedOptions = albumState.options;
-    projectLoaded = albumState.projectLoaded;
-    savedPhotos = albumState.savedPhotos || null;
-  } catch (error) {
-    loadWarning = `Could not load ${MANIFEST_FILENAME}: ${error.message}`;
-  }
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Choose a photo folder",
+      properties: ["openDirectory"],
+    });
+    if (result.canceled) return null;
 
-  return {
-    folder,
-    images,
-    options: savedOptions,
-    projectLoaded,
-    loadWarning,
-    savedPhotos,
-  };
+    const folder = result.filePaths[0];
+    const entries = await fs.readdir(folder, { withFileTypes: true });
+    let images = entries
+      .filter((entry) => entry.isFile() && isSupportedImage(entry.name))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      .map((entry) => {
+        const filePath = path.join(folder, entry.name);
+        return {
+          id: filePath,
+          name: entry.name,
+          path: filePath,
+          url: pathToFileURL(filePath).href,
+        };
+      });
+
+    let savedOptions = null;
+    let projectLoaded = false;
+    let loadWarning = null;
+    let savedPhotos = null;
+    try {
+      const albumState = await loadAlbumState(folder, images);
+      images = albumState.images;
+      savedOptions = albumState.options;
+      projectLoaded = albumState.projectLoaded;
+      savedPhotos = albumState.savedPhotos || null;
+    } catch (error) {
+      loadWarning = `Could not load ${MANIFEST_FILENAME}: ${error.message}`;
+    }
+
+    const albumId = albumSession.select(folder, images);
+    thumbnailGenerationId += 1;
+    lastOutputFolder = null;
+    return {
+      albumId,
+      folder,
+      images,
+      options: savedOptions,
+      projectLoaded,
+      loadWarning,
+      savedPhotos,
+    };
+  } finally {
+    openingFolder = false;
+  }
 });
 
-ipcMain.handle("folder:reveal", async (_event, folder) => {
-  if (typeof folder === "string") await shell.openPath(folder);
+ipcMain.handle("folder:reveal", async () => {
+  if (lastOutputFolder) {
+    const error = await shell.openPath(lastOutputFolder);
+    if (error) throw new Error(error);
+  }
 });
 
 ipcMain.handle("thumbnails:generate", async (event, request) => {
+  const selection = albumSession.resolve(request);
   const generationId = ++thumbnailGenerationId;
   return generateThumbnails({
-    folder: request?.folder,
-    photos: request?.photos,
+    ...selection,
     cacheFolder: path.join(app.getPath("cache"), "almost-gallery-thumbnails"),
     runMagick,
     onThumbnail: (thumbnail) => {
       if (!event.sender.isDestroyed()) {
-        event.sender.send("photos:thumbnail", thumbnail);
+        event.sender.send("photos:thumbnail", { ...thumbnail, albumId: request.albumId });
       }
     },
     shouldContinue: () => generationId === thumbnailGenerationId,
   });
 });
 
-ipcMain.handle("photos:export", async (_event, request) => {
-  return exportAlbum({
-    folder: request?.folder,
-    photos: request?.photos,
-    options: request?.options,
-    runMagick,
-    onProgress: (progress) => {
-      mainWindow?.webContents.send("photos:progress", progress);
-    },
+ipcMain.handle("photos:export", async (event, request) => {
+  if (openingFolder) throw new Error("Finish choosing an album first.");
+  return albumSession.export(request, async (selection) => {
+    const result = await exportAlbum({
+      ...selection,
+      options: request?.options,
+      runMagick,
+      onProgress: (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send("photos:progress", progress);
+      },
+    });
+    lastOutputFolder = result.outputFolder;
+    return result;
   });
 });
 

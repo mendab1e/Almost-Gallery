@@ -67,3 +67,16 @@ test("ignores a missing Electron resource directory", async (t) => {
 
   assert.equal(await stripUnusedElectronLocales(buildPath), 0);
 });
+
+test("runtime staging includes only package metadata and source files", async (t) => {
+  const { stageRuntime } = require("../scripts/package-utils");
+  const root = await temporaryDirectory(t);
+  await fs.mkdir(path.join(root, "src"));
+  await fs.writeFile(path.join(root, "src", "main.js"), "runtime");
+  await fs.writeFile(path.join(root, "package.json"), "{}");
+  await fs.writeFile(path.join(root, "unexpected-secret.txt"), "exclude");
+  const staged = await stageRuntime(root);
+  t.after(() => fs.rm(staged, { recursive: true, force: true }));
+  assert.deepEqual((await fs.readdir(staged)).sort(), ["package.json", "src"]);
+  assert.equal(await fs.readFile(path.join(staged, "src", "main.js"), "utf8"), "runtime");
+});

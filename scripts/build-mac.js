@@ -2,7 +2,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { packager } = require("@electron/packager");
-const { stripUnusedElectronLocales } = require("./package-utils");
+const { stageRuntime, stripUnusedElectronLocales } = require("./package-utils");
 
 const root = path.resolve(__dirname, "..");
 const dist = path.join(root, "dist");
@@ -11,36 +11,31 @@ const productName = "Almost Gallery";
 async function build() {
   await fs.mkdir(dist, { recursive: true });
 
-  const appPaths = await packager({
-    dir: root,
-    out: dist,
-    name: productName,
-    platform: "darwin",
-    arch: process.arch,
-    overwrite: true,
-    quiet: true,
-    asar: true,
-    prune: true,
-    afterExtract: [async ({ buildPath }) => {
-      const removedCount = await stripUnusedElectronLocales(buildPath);
-      console.log(`Removed ${removedCount} unused Electron locales.`);
-    }],
-    appBundleId: "com.almostgallery.app",
-    appCategoryType: "public.app-category.photography",
-    icon: path.join(root, "assets", "icon.icns"),
-    ignore: [
-      /^\/AGENTS\.md$/,
-      /^\/\.gitignore$/,
-      /^\/assets(?:\/|$)/,
-      /^\/dist(?:\/|$)/,
-      /^\/node_modules(?:\/|$)/,
-      /^\/package-lock\.json$/,
-      /^\/test(?:\/|$)/,
-      /^\/scripts(?:\/|$)/,
-      /^\/tmp(?:\/|$)/,
-      /^\/README\.md$/,
-    ],
-  });
+  const runtime = await stageRuntime(root);
+  let appPaths;
+  try {
+    appPaths = await packager({
+      dir: runtime,
+      electronVersion: require("electron/package.json").version,
+      out: dist,
+      name: productName,
+      platform: "darwin",
+      arch: process.arch,
+      overwrite: true,
+      quiet: true,
+      asar: true,
+      prune: true,
+      afterExtract: [async ({ buildPath }) => {
+        const removedCount = await stripUnusedElectronLocales(buildPath);
+        console.log(`Removed ${removedCount} unused Electron locales.`);
+      }],
+      appBundleId: "com.almostgallery.app",
+      appCategoryType: "public.app-category.photography",
+      icon: path.join(root, "assets", "icon.icns"),
+    });
+  } finally {
+    await fs.rm(runtime, { recursive: true, force: true });
+  }
 
   if (appPaths.length !== 1) {
     throw new Error(`Expected one packaged app, received ${appPaths.length}.`);

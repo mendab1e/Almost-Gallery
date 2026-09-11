@@ -43,7 +43,8 @@ filename order matches the order chosen in the grid.
   leaves source photos unchanged.
 - Exports in grid order as `000.jpg`, `001.jpg`, `002.jpg`, and so on.
 - Replaces the previous `output` directory only after every conversion
-  succeeds, so stale files and partial failed exports are not retained.
+  succeeds. If saving the manifest fails, the previous output is restored.
+  Overlapping exports are rejected.
 - Saves photo order and ImageMagick options to
   `almost_gallery_output.json`.
 - Restores saved order and options when an album is reopened. Newly added
@@ -122,7 +123,8 @@ npm test
 The test suite covers filename generation, supported formats, option and
 manifest validation, manifest filesystem behavior, album restoration,
 ImageMagick discovery, cached-thumbnail generation and fallback behavior,
-atomic exports and failure recovery, drag ordering, grid size boundaries,
+export rollback after conversion, replacement, or manifest failures, album
+request validation, overlapping requests, thumbnail cancellation, drag ordering, grid size boundaries,
 gallery-preview navigation, control states, and folder-open warnings.
 
 To check dependency advisories:
@@ -141,4 +143,5 @@ The `.app`, `.zip`, and `.dmg` are written to `dist/`. The build targets the
 current Mac architecture and uses Electron Packager plus native macOS tools.
 To reduce the installed and download sizes, packaging keeps only Electron's
 English runtime locales and applies maximum compression to the DMG. The app's
-interface is English-only. The local build is not signed or notarized.
+interface is English-only. Packaging stages only `package.json` and `src/`
+for the application archive. The local build is not signed or notarized.

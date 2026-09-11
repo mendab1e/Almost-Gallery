@@ -1,3 +1,4 @@
+const { resizeDescription } = require("../src/export-options");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
@@ -94,7 +95,6 @@ const {
   reduceOrderHistory,
   exportSignature,
   exportStateLabel,
-  resizeDescription,
 } = require("../src/ui-state");
 
 test("insertion uses explicit before and after edges in both directions", () => {
@@ -153,4 +153,15 @@ test("resize descriptions distinguish fit, shrink, enlarge, cover and stretch", 
   assert.equal(resizeDescription("2000x1000^"), "Cover 2000 × 1000");
   assert.equal(resizeDescription("2000x1000!"), "Stretch to 2000 × 1000");
   assert.equal(resizeDescription("invalid"), "invalid");
+});
+
+test("unchanged order preserves history and redo", () => {
+  const first = [{ id: "a" }, { id: "b" }];
+  const moved = movePhotoById(first, "a", "b");
+  const history = reduceOrderHistory(
+    reduceOrderHistory({ past: [], present: first, future: [] }, { type: "move", photos: moved }),
+    { type: "undo" },
+  );
+  assert.equal(reduceOrderHistory(history, { type: "move", photos: history.present }), history);
+  assert.deepEqual(reduceOrderHistory(history, { type: "redo" }).present, moved);
 });
