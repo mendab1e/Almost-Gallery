@@ -2,6 +2,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { packager } = require("@electron/packager");
+const { stripUnusedElectronLocales } = require("./package-utils");
 
 const root = path.resolve(__dirname, "..");
 const dist = path.join(root, "dist");
@@ -20,10 +21,15 @@ async function build() {
     quiet: true,
     asar: true,
     prune: true,
+    afterExtract: [async ({ buildPath }) => {
+      const removedCount = await stripUnusedElectronLocales(buildPath);
+      console.log(`Removed ${removedCount} unused Electron locales.`);
+    }],
     appBundleId: "com.almostgallery.app",
     appCategoryType: "public.app-category.photography",
     icon: path.join(root, "assets", "icon.icns"),
     ignore: [
+      /^\/AGENTS\.md$/,
       /^\/\.gitignore$/,
       /^\/assets(?:\/|$)/,
       /^\/dist(?:\/|$)/,
@@ -68,6 +74,8 @@ async function build() {
     "-ov",
     "-format",
     "UDZO",
+    "-imagekey",
+    "zlib-level=9",
     dmgPath,
   ]);
 

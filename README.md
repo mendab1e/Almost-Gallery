@@ -139,4 +139,6 @@ npm run dist
 
 The `.app`, `.zip`, and `.dmg` are written to `dist/`. The build targets the
 current Mac architecture and uses Electron Packager plus native macOS tools.
-The local build is not signed or notarized.
+To reduce the installed and download sizes, packaging keeps only Electron's
+English runtime locales and applies maximum compression to the DMG. The app's
+interface is English-only. The local build is not signed or notarized.
