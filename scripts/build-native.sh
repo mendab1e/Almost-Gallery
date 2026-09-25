@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 swift build -c release --disable-sandbox
 
 app="dist/Almost Gallery.app"
+rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp .build/release/AlmostGallery "$app/Contents/MacOS/AlmostGallery"
 cp Native/Info.plist "$app/Contents/Info.plist"
