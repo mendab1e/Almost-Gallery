@@ -8,17 +8,19 @@ in that order.
 
 ## Features
 
+- Uses a native macOS window toolbar, system appearance, and grouped export settings.
 - Opens folders containing JPG, JPEG, PNG, WebP, TIFF, HEIC, and HEIF images.
 - Sorts new albums naturally by filename and restores saved order and options.
 - Shows cached 640px thumbnails in a resizable grid. Drag a thumbnail to reorder,
-  or select its filename and use the arrow buttons or Option + Left/Right.
+  or click to select it and use the arrow buttons or Option + Left/Right.
+  Adjust thumbnail size with the slider above the grid.
 - Limits thumbnail conversions to two at a time, including when switching albums.
 - Provides Undo and Redo for the current album, including Command + Z and
   Shift + Command + Z.
-- Opens a full photo preview by clicking a thumbnail or choosing **Preview**.
+- Opens a full photo preview by double-clicking a thumbnail or choosing **Preview**.
   Navigate with the arrow buttons or Left/Right keys; Escape closes the preview.
 - Offers width, height, sizing mode, JPEG quality, and advanced ImageMagick
-  geometry under **Export settings**. The defaults are `2000x2000` and `85`.
+  geometry under **Export Settings**. The defaults are `2000x2000` and `85`.
   Fit preserves the whole photo. Cover preserves proportions and may exceed one
   dimension without cropping. Exact dimensions stretches the image.
 - Applies EXIF auto-orientation and exports JPEGs without modifying source photos.
@@ -26,7 +28,7 @@ in that order.
   `output` folder. A failed export preserves the previous output and manifest.
   If the selected folder is moved or replaced, reopen it before exporting.
 - Reports old backups that could not be removed after a successful export and
-  offers **Show backups in Finder** so they can be reviewed and deleted.
+  offers **Show Backups in Finder** so they can be reviewed and deleted.
 - Saves order and options to `almost_gallery_output.json`. Missing source photos
   are ignored on reopening, and newly added photos are appended. Invalid saved
   JSON produces a warning while the album still opens.
@@ -52,7 +54,7 @@ The build creates a locally ad hoc signed `.app` in `dist/`. It is not notarized
 or prepared for external distribution. The Swift package can also be built with
 `swift build` and run with `swift run AlmostGallery`.
 
-Choose **Open folder**, arrange the grid, optionally adjust **Export settings**,
+Choose **Open Folder…**, arrange the grid, optionally adjust **Export Settings**,
 and choose **Export**. Generated photos are written to `output` inside the
 selected album. The default conversion is equivalent to:
 

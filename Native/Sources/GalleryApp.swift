@@ -10,13 +10,20 @@ struct AlmostGalleryApp: App {
       GalleryView(model: model)
         .frame(minWidth: 760, minHeight: 560)
     }
+    .defaultSize(width: 1000, height: 720)
+    .windowToolbarStyle(.unified)
     .commands {
+      CommandGroup(after: .importExport) {
+        Button("Export Photos") { model.export() }
+          .keyboardShortcut("e", modifiers: [.command, .shift])
+          .disabled(model.exporting || model.photos.isEmpty)
+      }
       CommandGroup(replacing: .newItem) {
-        Button("Open Folder...") { model.chooseFolder() }
+        Button("Open Folder…") { model.chooseFolder() }
           .keyboardShortcut("o")
           .disabled(model.exporting)
       }
-      CommandGroup(after: .undoRedo) {
+      CommandGroup(replacing: .undoRedo) {
         Button("Undo Order") { model.undo() }
           .keyboardShortcut("z")
           .disabled(model.exporting || model.past.isEmpty)
@@ -262,13 +269,14 @@ struct GalleryView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      toolbar
-      Divider()
       if model.album == nil { emptyState } else { workspace }
       Divider()
       footer
     }
     .background(Color(nsColor: .windowBackgroundColor))
+    .navigationTitle(model.album?.lastPathComponent ?? "Almost Gallery")
+    .navigationSubtitle(model.album == nil ? "" : model.exportState)
+    .toolbar { toolbar }
     .sheet(isPresented: $model.settingsOpen) { SettingsView(model: model) }
     .sheet(item: Binding(
       get: { model.previewIndex.map { PreviewSelection(index: $0) } },
@@ -276,32 +284,36 @@ struct GalleryView: View {
     )) { _ in PreviewView(model: model) }
   }
 
-  private var toolbar: some View {
-    HStack(spacing: 14) {
-      VStack(alignment: .leading, spacing: 2) {
-        Text("ALMOST GALLERY").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-        Text(model.album?.lastPathComponent ?? "Almost Gallery").font(.system(size: 22, weight: .medium, design: .serif))
-          .lineLimit(1).help(model.album?.path ?? "Almost Gallery")
-      }
-      Spacer(minLength: 12)
-      Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
-        .help("Undo order").disabled(model.exporting || model.past.isEmpty)
-      Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
-        .help("Redo order").disabled(model.exporting || model.future.isEmpty)
-      Button("Open folder") { model.chooseFolder() }.disabled(model.exporting)
-      Button("Preview") { model.previewIndex = 0 }.disabled(model.photos.isEmpty)
-      Button("Export") { model.export() }.buttonStyle(.borderedProminent).tint(accent)
-        .disabled(model.exporting || model.photos.isEmpty)
+  @ToolbarContentBuilder
+  private var toolbar: some ToolbarContent {
+    ToolbarItem(placement: .navigation) {
+      Button { model.chooseFolder() } label: { Label("Open Folder…", systemImage: "folder") }
+        .help("Open Folder (⌘O)").disabled(model.exporting)
     }
-    .padding(.horizontal, 24).frame(height: 78)
+    ToolbarItemGroup {
+      Button { model.undo() } label: { Label("Undo Order", systemImage: "arrow.uturn.backward") }
+        .help("Undo Order (⌘Z)").disabled(model.exporting || model.past.isEmpty)
+      Button { model.redo() } label: { Label("Redo Order", systemImage: "arrow.uturn.forward") }
+        .help("Redo Order (⇧⌘Z)").disabled(model.exporting || model.future.isEmpty)
+    }
+    ToolbarItemGroup(placement: .primaryAction) {
+      Button {
+        model.previewIndex = model.photos.firstIndex { $0.id == model.selectedPhotoID } ?? 0
+      } label: { Label("Preview", systemImage: "eye") }
+        .help("Preview Selected Photo").disabled(model.photos.isEmpty)
+      Button { model.settingsOpen = true } label: { Label("Export Settings…", systemImage: "slider.horizontal.3") }
+        .help("Export Settings").disabled(model.exporting)
+      Button { model.export() } label: { Label("Export", systemImage: "square.and.arrow.up") }
+        .help("Export Photos (⇧⌘E)").disabled(model.exporting || model.photos.isEmpty)
+    }
   }
 
   private var emptyState: some View {
     VStack(spacing: 12) {
-      Image(systemName: "photo.on.rectangle.angled").font(.system(size: 42)).foregroundStyle(accent)
-      Text("Arrange photos for your gallery").font(.system(size: 24, design: .serif))
+      Image(systemName: "photo.on.rectangle.angled").font(.system(size: 48, weight: .light)).foregroundStyle(.secondary)
+      Text("Arrange photos for your gallery").font(.title2.weight(.semibold))
       Text("Choose an album folder to begin.").foregroundStyle(.secondary)
-      Button("Open folder") { model.chooseFolder() }.buttonStyle(.borderedProminent).tint(accent).padding(.top, 8)
+      Button("Open Folder…") { model.chooseFolder() }.buttonStyle(.borderedProminent).tint(accent).padding(.top, 8)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
@@ -318,24 +330,40 @@ struct GalleryView: View {
           .help("Move selected photo right").keyboardShortcut(.rightArrow, modifiers: [.option])
           .disabled(model.exporting || model.selectedPhotoID == nil)
         Divider().frame(height: 18)
-        Button { model.gridSizeIndex = max(0, model.gridSizeIndex - 1) } label: { Image(systemName: "minus") }
-          .help("Smaller thumbnails").disabled(model.gridSizeIndex == 0)
-        Text("Thumbnail size").font(.caption).foregroundStyle(.secondary)
-        Button { model.gridSizeIndex = min(model.gridSizes.count - 1, model.gridSizeIndex + 1) } label: { Image(systemName: "plus") }
-          .help("Larger thumbnails").disabled(model.gridSizeIndex == model.gridSizes.count - 1)
-      }.padding(.horizontal, 24).padding(.vertical, 14)
-      ScrollView {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: model.gridSizes[model.gridSizeIndex]), spacing: 16)], spacing: 16) {
-          ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
-            photoCard(photo, index: index)
-          }
-        }.padding(.horizontal, 24).padding(.bottom, 24)
+        Image(systemName: "photo").foregroundStyle(.secondary)
+        Slider(value: Binding(
+          get: { Double(model.gridSizeIndex) },
+          set: { model.gridSizeIndex = Int($0) }
+        ), in: 0...Double(model.gridSizes.count - 1), step: 1)
+          .frame(width: 100)
+          .accessibilityLabel("Thumbnail Size")
+          .help("Thumbnail Size")
+        Image(systemName: "photo.fill").foregroundStyle(.secondary)
+      }
+      .controlSize(.small)
+      .padding(.horizontal, 20).padding(.vertical, 10)
+      Divider()
+      if model.photos.isEmpty {
+        VStack(spacing: 10) {
+          Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary)
+          Text("No Photos").font(.title2.weight(.semibold))
+          Text("Choose a folder containing supported images.").foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        ScrollView {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: model.gridSizes[model.gridSizeIndex]), spacing: 16)], spacing: 16) {
+            ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
+              photoCard(photo, index: index)
+            }
+          }.padding(20)
+        }
+        .background(Color(nsColor: .textBackgroundColor))
       }
     }
   }
 
   private func photoCard(_ photo: Photo, index: Int) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: 6) {
       ZStack {
         Rectangle().fill(Color(nsColor: .controlBackgroundColor))
         if let url = model.thumbnails[photo.id], let image = NSImage(contentsOf: url) {
@@ -345,14 +373,30 @@ struct GalleryView: View {
       .aspectRatio(4/3, contentMode: .fit)
       .clipShape(RoundedRectangle(cornerRadius: 4))
       .contentShape(Rectangle())
-      .onTapGesture { model.selectedPhotoID = photo.id; model.previewIndex = index }
       HStack(spacing: 8) {
         Text(GalleryCore.outputName(index, total: model.photos.count).replacingOccurrences(of: ".jpg", with: ""))
-          .font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(accent)
-        Text(photo.name).font(.caption).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
-      }.contentShape(Rectangle()).onTapGesture { model.selectedPhotoID = photo.id }
+          .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+        Text(photo.name).font(.caption).lineLimit(1).truncationMode(.middle)
+      }.padding(.horizontal, 4).padding(.bottom, 4)
     }
-    .padding(3)
+    .padding(5)
+    .background(model.selectedPhotoID == photo.id ? accent.opacity(0.15) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 6))
+    .contentShape(Rectangle())
+    .gesture(
+      TapGesture(count: 2)
+        .onEnded { model.selectedPhotoID = photo.id; model.previewIndex = index }
+        .exclusively(before: TapGesture().onEnded { model.selectedPhotoID = photo.id })
+    )
+    .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(model.selectedPhotoID == photo.id ? .isSelected : [])
+    .contextMenu {
+      Button("Preview") { model.selectedPhotoID = photo.id; model.previewIndex = index }
+      Button("Move Earlier") { model.selectedPhotoID = photo.id; model.moveSelected(-1) }
+        .disabled(model.exporting || index == 0)
+      Button("Move Later") { model.selectedPhotoID = photo.id; model.moveSelected(1) }
+        .disabled(model.exporting || index == model.photos.count - 1)
+    }
     .background(GeometryReader { geometry in
       Color.clear
         .onAppear { cardWidths[photo.id] = geometry.size.width }
@@ -374,9 +418,7 @@ struct GalleryView: View {
   private var footer: some View {
     HStack(alignment: .center, spacing: 16) {
       VStack(alignment: .leading, spacing: 3) {
-        Text(model.summary).font(.caption)
-        Text(model.exportState).font(.caption2).foregroundStyle(.secondary)
-        Text(model.status).font(.caption2).foregroundStyle(model.statusIsError ? Color.red : Color.primary)
+        Text(model.status).font(.caption).foregroundStyle(model.statusIsError ? Color.red : Color.primary)
           .lineLimit(2)
         if model.exporting {
           ProgressView(value: Double(model.exportProgress), total: Double(max(1, model.photos.count)))
@@ -385,9 +427,10 @@ struct GalleryView: View {
       }
       Spacer()
       if model.outputFolder != nil { Button("Show in Finder") { model.revealOutput() } }
-      if !model.backupsNeedingCleanup.isEmpty { Button("Show backups in Finder") { model.revealBackups() } }
-      Button("Export settings") { model.settingsOpen = true }.disabled(model.exporting)
-    }.padding(.horizontal, 24).padding(.vertical, 12).frame(minHeight: 76)
+      if !model.backupsNeedingCleanup.isEmpty { Button("Show Backups in Finder") { model.revealBackups() } }
+      Text(model.album == nil ? "Almost Gallery" : model.summary)
+        .font(.caption).foregroundStyle(.secondary)
+    }.controlSize(.small).padding(.horizontal, 20).padding(.vertical, 10)
   }
 }
 
@@ -408,7 +451,7 @@ struct PreviewView: View {
           }
         }
         Spacer()
-        Button { model.previewIndex = nil } label: { Image(systemName: "xmark") }.help("Close preview")
+        Button("Done") { model.previewIndex = nil }.help("Close preview")
           .keyboardShortcut(.cancelAction)
       }.padding()
       Divider()
@@ -450,33 +493,46 @@ struct SettingsView: View {
   private let sizes = ["": "Fit within", ">": "Only shrink", "<": "Only enlarge", "^": "Cover dimensions", "!": "Exact dimensions"]
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 18) {
-      Text("Export settings").font(.system(size: 25, design: .serif))
-      Toggle("Advanced ImageMagick syntax", isOn: $advanced)
-      if advanced {
-        TextField("Resize geometry", text: $resize)
-        Text("Example: 2000x2000> resizes only larger photos.").font(.caption).foregroundStyle(.secondary)
-      } else {
-        HStack {
-          TextField("Width (px)", text: $width)
-          TextField("Height (px)", text: $height)
-        }
-        Picker("Sizing", selection: $sizing) {
-          ForEach(["", ">", "<", "^", "!"], id: \.self) { key in Text(sizes[key]!).tag(key) }
-        }
-        Text("Cover preserves proportions and may exceed one dimension without cropping.")
-          .font(.caption).foregroundStyle(.secondary)
-      }
-      TextField("JPEG quality", text: $quality)
-      if !error.isEmpty { Text(error).font(.caption).foregroundStyle(.red) }
+    VStack(spacing: 0) {
       HStack {
-        Button("Reset defaults") { load(ExportOptions()) }
+        Text("Export Settings").font(.headline)
         Spacer()
-        Button("Cancel") { dismiss() }
-        Button("Apply settings") { apply() }.buttonStyle(.borderedProminent)
+      }.padding(20)
+      Divider()
+      Form {
+        Section("Image Size") {
+          Toggle("Advanced ImageMagick syntax", isOn: $advanced)
+          if advanced {
+            TextField("Resize geometry", text: $resize)
+            Text("Example: 2000x2000> resizes only larger photos.")
+              .font(.caption).foregroundStyle(.secondary)
+          } else {
+            TextField("Width (px)", text: $width)
+            TextField("Height (px)", text: $height)
+            Picker("Sizing", selection: $sizing) {
+              ForEach(["", ">", "<", "^", "!"], id: \.self) { key in Text(sizes[key]!).tag(key) }
+            }
+            Text("Cover preserves proportions and may exceed one dimension without cropping.")
+              .font(.caption).foregroundStyle(.secondary)
+          }
+        }
+        Section("JPEG") {
+          TextField("Quality (1–100)", text: $quality)
+        }
+        if !error.isEmpty {
+          Text(error).font(.caption).foregroundStyle(.red)
+        }
       }
+      .formStyle(.grouped)
+      Divider()
+      HStack {
+        Button("Restore Defaults") { load(ExportOptions()) }
+        Spacer()
+        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+        Button("Apply") { apply() }.keyboardShortcut(.defaultAction)
+      }.padding(20)
     }
-    .padding(24).frame(width: 460)
+    .frame(width: 480, height: 470)
     .onAppear { load(model.options) }
   }
 
